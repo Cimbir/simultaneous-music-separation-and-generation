@@ -51,14 +51,26 @@
 
 ### [URMP (University of Rochester Multi-Modal Musical Performance)](https://labsites.rochester.edu/air/projects/URMP.html)
 
+- **ჟანრი:** კლასიკური
+- **ზომა:** 12GB, 44 მარტივი კლასიკური ნაწარმოები
+- **სტრუქტურა:** როგორც ვნახე ეს ბევრად უფრო ფართო დატასეტია, შეიცავს ცალ-ცალკე ინსტრუმენტების აუდიოს, ასევე ერთმანეთზე გადადებულს, თუმცა ამასთან შეიცავს ვიდეოებს, შემსრულებლების და დირიჟორის
+- **ფორმატი:** .wav
+- **მახასიათებლები:** 48kHz sample rate, 24-bit depth
+
 ---
 
 ### [SynthSOD (Synthesized Source Object Dataset)](https://github.com/repertorium/SynthSOD-Baseline)
+
+- საკმაოდ ჰგავს The spheres datset-ს, ანალოგიური ჟანრი, სტრუქტრა, სათითაო ინსტრუმენტები თითოეული ნაწარმოებისთვის, ერთიანი არ გვაქვს.
 
 ---
 
 ### [MedleyDB Audio (Version 1.0)](https://zenodo.org/records/1649325)
 
+- ძველ სტატიას რატომღაც არ მახსნევინებს, მხოლოდ MedleyDB 2.0-ზე მოვახერხე წაკითხვა, რასაც management სისტემა აქვს დამატებული თუ რომელიმე არტისტს მუსიკის ატვირთვა უნდა. ჟანრი შერეულია, 254 ნაწრმოებით, wav ფაილებით, 44.1kHz, 16-bit depth.
+
 ---
 
 ### [DAMP-S-AG (Digital Archive of Mobile Performances)](https://zenodo.org/records/3596940)
+
+- ეს დატასეტი არ გამოგვადგება, სხვადასხვა მომღერლების ვიდეოებია იგივე backing track-ზე.
