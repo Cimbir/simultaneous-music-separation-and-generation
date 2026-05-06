@@ -25,7 +25,7 @@ class EncodecVAE(VAE):
     @torch.no_grad()
     def encode(self, audio: torch.Tensor) -> torch.Tensor:
         frames = self.model.encode(audio.to(self._device))
-        return frames[0][0].float()  # [B, n_q, T']
+        return frames[0][0].float() # [B, n_q, T']
 
     @torch.no_grad()
     def decode(self, z: torch.Tensor) -> torch.Tensor:

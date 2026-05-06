@@ -203,7 +203,7 @@ class MsgLdDiffusionModel(DiffusionModel):
         if isinstance(x_mix, torch.Tensor):
             x_mix = x_mix.to(self._device)
             if x_mix.dim() == 3:
-                x_mix = x_mix.unsqueeze(1)  # (B, 1, n_mels, T)
+                x_mix = x_mix.unsqueeze(1) # (B, 1, n_mels, T)
         return self.cond_stage_model(x_mix)
 
     def apply_model(self, x_noisy, t, cond):

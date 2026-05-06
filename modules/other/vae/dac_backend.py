@@ -30,8 +30,8 @@ class DACBackend(VAE):
     def encode(self, audio: torch.Tensor) -> torch.Tensor:
         x = self.model.preprocess(audio.to(self._device), self._sr)
         z, codes, latents, _, _ = self.model.encode(x)
-        return z  # [B, 64, T']
+        return z # [B, 64, T']
 
     @torch.no_grad()
     def decode(self, z: torch.Tensor) -> torch.Tensor:
-        return self.model.decode(z.to(self._device))  # [B, 1, T]
+        return self.model.decode(z.to(self._device)) # [B, 1, T]

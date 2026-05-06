@@ -10,7 +10,7 @@ class BigVGANVocoder(Vocoder):
         self.model = bigvgan.BigVGAN.from_pretrained(model_name)
         self.model.remove_weight_norm()
         self.model.eval()
-        self.sample_rate = 24000  # adjust per model variant
+        self.sample_rate = 24000 # adjust per model variant
         self._device = device
 
     def to(self, device):

@@ -1,7 +1,5 @@
 from latent_diffusion.models.ddim import DDIMSampler
 import torch
-import soundfile as sf
-from pathlib import Path
 
 STEM_NAMES = ["bass", "drums", "guitar", "piano"]
 
@@ -45,10 +43,10 @@ def _decode_samples(samples, dm, vae, vocoder):
     Decode DDIM latents -> per-stem audio.
 
     Flow:
-      (B, S, C, T, F)  --[/ scale_factor]--> reshape (B*S, C, T, F)
-        --[VAE decode]--> mel  (B*S, 1, n_mels, T_mel)
-        --[HiFiGAN]   --> wav  (B*S, num_samples) int16
-        --[reshape]   --> (B, S, num_samples)
+        (B, S, C, T, F) / scale_factor -> reshape (B*S, C, T, F)
+        [VAE decode] -> mel  (B*S, 1, n_mels, T_mel)
+        [HiFiGAN] -> wav  (B*S, num_samples) int16
+        [reshape] -> (B, S, num_samples)
 
     Returns:
         audio : int16 numpy   (B, num_stems, num_samples)
@@ -125,7 +123,7 @@ def separate_mixture(
     dm.eval()
 
     # 1. Build conditioning from mixture
-    mel = mel_extractor.audio_to_mel(mixture_audio, sr)   # (1, n_mels, T)
+    mel = mel_extractor.audio_to_mel(mixture_audio, sr) # (1, n_mels, T)
     T = mel.shape[-1]
     if T < target_length:
         mel = torch.nn.functional.pad(mel, (0, target_length - T))
@@ -145,13 +143,3 @@ def separate_mixture(
     # 3. Decode
     audio, mels = _decode_samples(samples, dm, vae, vocoder)
     return audio[0], mels[0]
-
-
-# def save_stems(audio, sr, out_dir, prefix="stem"):
-#     """Write per-stem wav files.  audio: (num_stems, num_samples) int16."""
-#     out = Path(out_dir)
-#     out.mkdir(parents=True, exist_ok=True)
-#     for i, name in enumerate(STEM_NAMES):
-#         path = out / f"{prefix}_{name}.wav"
-#         sf.write(str(path), audio[i].astype("float32") / 32768.0, sr)
-#         print(f"  Saved {path}")

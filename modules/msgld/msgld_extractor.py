@@ -29,5 +29,5 @@ class MsgLdMelExtractor(MelExtractor):
             audio = librosa.resample(audio, orig_sr=sr, target_sr=self.sampling_rate)
         audio = np.clip(audio, -1.0, 1.0)
         audio_t = torch.FloatTensor(audio).unsqueeze(0) # (1, T)
-        mel, _, _ = self.stft.mel_spectrogram(audio_t)  # (1, n_mels, T')
-        return mel  # (1, n_mels, T')
+        mel, _, _ = self.stft.mel_spectrogram(audio_t) # (1, n_mels, T')
+        return mel # (1, n_mels, T')
