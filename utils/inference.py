@@ -1,4 +1,4 @@
-from latent_diffusion.models.ddim import DDIMSampler
+
 import torch
 
 STEM_NAMES = ["bass", "drums", "guitar", "piano"]
@@ -6,7 +6,7 @@ STEM_NAMES = ["bass", "drums", "guitar", "piano"]
 
 @torch.no_grad()
 def _run_ddim(
-    diffusion_model,
+    sampler,
     conditioning, # (B, num_stems, z_ch, T, F) - mixture VAE latent replicated per stem
     *,
     ddim_steps=200,
@@ -19,20 +19,18 @@ def _run_ddim(
 
     Returns: samples (B, num_stems, z_channels, T, F) in scaled latent space.
     """
-    dm = diffusion_model
+    dm = sampler.get_diffusion_model()
     shape = (dm.num_stems, dm.z_channels, dm.latent_t_size, dm.latent_f_size)
     uncond = dm.cond_stage_model.get_unconditional_condition(batch_size)
 
-    sampler = DDIMSampler(dm)
     samples, _ = sampler.sample(
-        S=ddim_steps,
+        steps=ddim_steps,
         batch_size=batch_size,
         shape=shape,
         conditioning=conditioning,
         eta=ddim_eta,
         verbose=False,
-        unconditional_guidance_scale=cfg_scale,
-        unconditional_conditioning=uncond if cfg_scale != 1.0 else None,
+        cfg_scale=cfg_scale,
     )
     return samples
 
@@ -65,7 +63,7 @@ def _decode_samples(samples, dm, vae, vocoder):
 
 @torch.no_grad()
 def generate_stems(
-    dm,
+    sampler,
     vae,
     vocoder,
     *,
@@ -82,9 +80,10 @@ def generate_stems(
         audio : int16 numpy (num_stems, num_samples)
         mels : float tensor (num_stems, 1, n_mels, T_mel)
     """
+    dm = sampler.get_diffusion_model()
     dm.eval()
     cond = dm.cond_stage_model.get_unconditional_condition(1) # zeros (1, S, C, T, F)
-    samples = _run_ddim(dm, cond, ddim_steps=ddim_steps, ddim_eta=ddim_eta, cfg_scale=1.0)
+    samples = _run_ddim(sampler, cond, ddim_steps=ddim_steps, ddim_eta=ddim_eta, cfg_scale=1.0)
     audio, mels = _decode_samples(samples, dm, vae, vocoder)
     return audio[0], mels[0]
 
@@ -93,7 +92,7 @@ def generate_stems(
 def separate_mixture(
     mixture_audio,
     sr,
-    dm,
+    sampler,
     vae,
     vocoder,
     mel_extractor,
@@ -120,6 +119,7 @@ def separate_mixture(
         audio : int16 numpy   (num_stems, num_samples)
         mels  : float tensor  (num_stems, 1, n_mels, T_mel)
     """
+    dm = sampler.get_diffusion_model()
     dm.eval()
 
     # 1. Build conditioning from mixture
@@ -134,7 +134,7 @@ def separate_mixture(
 
     # 2. DDIM reverse diffusion
     samples = _run_ddim(
-        dm, cond,
+        sampler, cond,
         ddim_steps=ddim_steps,
         ddim_eta=ddim_eta,
         cfg_scale=cfg_scale,
