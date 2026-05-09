@@ -21,9 +21,8 @@ def _run_ddim(
     """
     dm = sampler.get_diffusion_model()
     shape = (dm.num_stems, dm.z_channels, dm.latent_t_size, dm.latent_f_size)
-    uncond = dm.cond_stage_model.get_unconditional_condition(batch_size)
 
-    samples, _ = sampler.sample(
+    samples = sampler.sample(
         steps=ddim_steps,
         batch_size=batch_size,
         shape=shape,
