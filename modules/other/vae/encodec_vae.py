@@ -1,5 +1,5 @@
 import torch
-from modules.abstractions.vae import VAE
+from modules.abstractions.vae import VAE, deterministic_encode_output
 from encodec import EncodecModel
 
 class EncodecVAE(VAE):
@@ -23,9 +23,10 @@ class EncodecVAE(VAE):
         return self
 
     @torch.no_grad()
-    def encode(self, audio: torch.Tensor) -> torch.Tensor:
+    def encode(self, audio: torch.Tensor) -> dict:
         frames = self.model.encode(audio.to(self._device))
-        return frames[0][0].float() # [B, n_q, T']
+        z = frames[0][0].float() # [B, n_q, T']
+        return deterministic_encode_output(z)
 
     @torch.no_grad()
     def decode(self, z: torch.Tensor) -> torch.Tensor:

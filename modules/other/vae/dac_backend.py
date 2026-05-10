@@ -1,4 +1,4 @@
-from modules.abstractions.vae import VAE
+from modules.abstractions.vae import VAE, deterministic_encode_output
 import torch
 import dac
 
@@ -27,10 +27,10 @@ class DACBackend(VAE):
         return self
 
     @torch.no_grad()
-    def encode(self, audio: torch.Tensor) -> torch.Tensor:
+    def encode(self, audio: torch.Tensor) -> dict:
         x = self.model.preprocess(audio.to(self._device), self._sr)
         z, codes, latents, _, _ = self.model.encode(x)
-        return z # [B, 64, T']
+        return deterministic_encode_output(z) # [B, 64, T']
 
     @torch.no_grad()
     def decode(self, z: torch.Tensor) -> torch.Tensor:

@@ -1,6 +1,25 @@
-import numpy as np
 import torch
 from abc import ABC, abstractmethod
+
+
+class DeterministicPosterior:
+    """Posterior-compatible wrapper for encoders that return deterministic latents."""
+
+    def __init__(self, mean: torch.Tensor, logvar_value: float = -30.0):
+        self.mean = mean
+        self.logvar = torch.full_like(mean, logvar_value)
+
+    def sample(self) -> torch.Tensor:
+        return self.mean
+
+    def mode(self) -> torch.Tensor:
+        return self.mean
+
+
+def deterministic_encode_output(mean: torch.Tensor, logvar_value: float = -30.0) -> dict:
+    posterior = DeterministicPosterior(mean, logvar_value)
+    return {"mean": posterior.mean, "logvar": posterior.logvar, "posterior": posterior}
+
 
 class VAE(ABC):
     """Interface for a VAE that operates on mel-spectrograms."""

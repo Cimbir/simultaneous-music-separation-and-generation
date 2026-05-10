@@ -1,6 +1,5 @@
-import numpy as np
 import torch
-from modules.abstractions.vae import VAE
+from modules.abstractions.vae import VAE, deterministic_encode_output
 from music2latent import EncoderDecoder
 
 
@@ -26,14 +25,15 @@ class Music2LatentVAE(VAE):
         return self
 
     @torch.no_grad()
-    def encode(self, audio: torch.Tensor) -> torch.Tensor:
-        # audio: [B, 1, T] -> latents: [B, D, L]
+    def encode(self, audio: torch.Tensor) -> dict:
+        # audio: [B, 1, T] -> dict(mean, logvar, posterior), each [B, D, L]
         latents = []
         for sample in audio:
             wav = sample.squeeze(0).cpu().numpy() # [T]
             z = self.model.encode(wav)             # [1, D, L]
-            latents.append(torch.from_numpy(z))
-        return torch.cat(latents, dim=0).to(self._device) # [B, D, L]
+            latents.append(torch.as_tensor(z, device=self._device))
+        mean = torch.cat(latents, dim=0) # [B, D, L]
+        return deterministic_encode_output(mean)
 
     @torch.no_grad()
     def decode(self, z: torch.Tensor) -> torch.Tensor:

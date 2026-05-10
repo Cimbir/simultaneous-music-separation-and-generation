@@ -1,5 +1,5 @@
 import torch
-from modules.abstractions.vae import VAE
+from modules.abstractions.vae import VAE, deterministic_encode_output
 from stable_audio_tools import get_pretrained_model
 
 
@@ -25,8 +25,9 @@ class StableAudioVAE(VAE):
         return self
 
     @torch.no_grad()
-    def encode(self, audio: torch.Tensor) -> torch.Tensor:
-        return self.autoencoder.encode(audio.to(self._device))
+    def encode(self, audio: torch.Tensor) -> dict:
+        z = self.autoencoder.encode(audio.to(self._device))
+        return deterministic_encode_output(z)
 
     @torch.no_grad()
     def decode(self, z: torch.Tensor) -> torch.Tensor:
