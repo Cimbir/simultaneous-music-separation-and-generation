@@ -2,6 +2,7 @@ from modules.abstractions.diffusion_trainer import DiffusionTrainer
 from modules.abstractions.diffusion_model import DiffusionModel
 from modules.msgld.msgld_diffusion_model import MsgLdDiffusionModel
 import torch
+import torch.nn as nn
 from torch.optim import AdamW
 
 class MsgLdDiffusionTrainer(DiffusionTrainer):
@@ -25,6 +26,31 @@ class MsgLdDiffusionTrainer(DiffusionTrainer):
         self.original_elbo_weight = original_elbo_weight
         self.loss_type = loss_type
         self.learn_logvar = learn_logvar
+
+        self.denoiser = diffusion_model.model
+        self.cond_stage = diffusion_model.cond_stage_model
+
+    def setup(self, stage: str):
+        device = str(self.device)
+        self.diffusion_model.to(device)
+        self.diffusion_model.vae.to(device)
+
+    def on_save_checkpoint(self, checkpoint: dict):
+        checkpoint["dm_scale_factor"] = self.diffusion_model.scale_factor
+        checkpoint["dm_scale_computed"] = self.diffusion_model._scale_computed
+        lv = self.diffusion_model.logvar
+        checkpoint["dm_logvar"] = lv.data if isinstance(lv, nn.Parameter) else lv
+
+    def on_load_checkpoint(self, checkpoint: dict):
+        if "dm_scale_factor" in checkpoint:
+            self.diffusion_model.scale_factor = checkpoint["dm_scale_factor"]
+            self.diffusion_model._scale_computed = checkpoint.get("dm_scale_computed", True)
+        if "dm_logvar" in checkpoint:
+            lv = self.diffusion_model.logvar
+            if isinstance(lv, nn.Parameter):
+                lv.data.copy_(checkpoint["dm_logvar"])
+            else:
+                self.diffusion_model.logvar = checkpoint["dm_logvar"]
 
     def build_diffusion_model(self) -> DiffusionModel:
         return self.diffusion_model

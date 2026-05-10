@@ -28,6 +28,11 @@ class DiffusionTrainer(pl.LightningModule, ABC):
         """Given a data batch, compute (scalar_loss, {metric_name: value})."""
         ...
 
+    @abstractmethod
+    def configure_optimizers(self):
+        """Return the optimizer (and optionally lr_scheduler) for training."""
+        ...
+
     # Shared implementation
 
     def warmup_step(self):

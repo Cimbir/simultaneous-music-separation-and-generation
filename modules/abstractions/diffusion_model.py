@@ -47,6 +47,11 @@ class DiffusionModel(ABC):
         """Load model state dict."""
         ...
 
+    @abstractmethod
+    def parameters(self):
+        """Return the trainable parameters (frozen components excluded)."""
+        ...
+
     # Shared implementation
 
     def setup_noise_schedule(
