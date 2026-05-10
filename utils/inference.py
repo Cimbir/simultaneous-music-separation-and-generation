@@ -10,12 +10,17 @@ def _run_ddim(
     conditioning, # (B, num_stems, z_ch, T, F) - mixture VAE latent replicated per stem
     *,
     ddim_steps=200,
+    ddim_discretize="uniform",
     ddim_eta=1.0, # 0 = deterministic, 1 = full stochastic (DDPM-like)
     cfg_scale=1.0, # 1.0 = no guidance, >1 amplifies conditioning vs zero baseline
     batch_size=1,
 ):
     """
     Core DDIM sampling.
+
+    ddim_discretize:
+        "uniform" keeps evenly spaced training timesteps.
+        "quad" uses the latent-diffusion quadratic spacing.
 
     Returns: samples (B, num_stems, z_channels, T, F) in scaled latent space.
     """
@@ -28,6 +33,7 @@ def _run_ddim(
         shape=shape,
         conditioning=conditioning,
         eta=ddim_eta,
+        ddim_discretize=ddim_discretize,
         verbose=False,
         cfg_scale=cfg_scale,
     )
@@ -67,6 +73,7 @@ def generate_stems(
     vocoder,
     *,
     ddim_steps=200,
+    ddim_discretize="uniform",
     ddim_eta=1.0,
 ):
     """
@@ -82,7 +89,14 @@ def generate_stems(
     dm = sampler.get_diffusion_model()
     dm.eval()
     cond = dm.cond_stage_model.get_unconditional_condition(1) # zeros (1, S, C, T, F)
-    samples = _run_ddim(sampler, cond, ddim_steps=ddim_steps, ddim_eta=ddim_eta, cfg_scale=1.0)
+    samples = _run_ddim(
+        sampler,
+        cond,
+        ddim_steps=ddim_steps,
+        ddim_discretize=ddim_discretize,
+        ddim_eta=ddim_eta,
+        cfg_scale=1.0,
+    )
     audio, mels = _decode_samples(samples, dm, vae, vocoder)
     return audio[0], mels[0]
 
@@ -97,6 +111,7 @@ def separate_mixture(
     mel_extractor,
     *,
     ddim_steps=200,
+    ddim_discretize="uniform",
     ddim_eta=1.0,
     cfg_scale=3.0,
     target_length=1024,
@@ -111,6 +126,7 @@ def separate_mixture(
     Args:
         mixture_audio : 1-D float32 numpy array in [-1, 1], any length
         sr : sample rate
+        ddim_discretize : DDIM timestep spacing, "uniform" or "quad"
         cfg_scale : guidance strength; 1 = none, 3-5 = recommended for separation
         target_length : mel frames to use — must match latent_t_size * VAE time stride (= 1024 for default config at 16 kHz, hop=160)
 
@@ -135,6 +151,7 @@ def separate_mixture(
     samples = _run_ddim(
         sampler, cond,
         ddim_steps=ddim_steps,
+        ddim_discretize=ddim_discretize,
         ddim_eta=ddim_eta,
         cfg_scale=cfg_scale,
     )

@@ -30,12 +30,14 @@ class MsgLdSampler(Sampler):
         *,
         batch_size: int = 1,
         cfg_scale: float = 1.0,
+        ddim_discretize: str = "uniform",
         **kwargs,
     ) -> torch.Tensor:
         uncond = self.dm.cond_stage_model.get_unconditional_condition(batch_size)
         samples, _ = self._ddim.sample(
             S=steps,
             eta=eta,
+            ddim_discretize=ddim_discretize,
             verbose=verbose,
             batch_size=batch_size,
             shape=shape,
