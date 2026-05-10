@@ -14,8 +14,10 @@ class MsgLdHeunSampler(Sampler):
     timesteps selected by the DDIM discretization helper.
     """
 
-    def __init__(self, diffusion_model):
+    def __init__(self, diffusion_model, *, use_correction: bool = True, name: str = "Heun"):
         self.dm = diffusion_model
+        self.use_correction = use_correction
+        self.name = name
 
     @torch.no_grad()
     def sample(
@@ -35,10 +37,10 @@ class MsgLdHeunSampler(Sampler):
     ) -> torch.Tensor:
         if kwargs:
             unsupported = ", ".join(sorted(kwargs.keys()))
-            raise NotImplementedError(f"Heun sampler does not support: {unsupported}")
+            raise NotImplementedError(f"{self.name} sampler does not support: {unsupported}")
 
         if verbose and eta != 0.0:
-            print("Heun sampler is deterministic and ignores eta.")
+            print(f"{self.name} sampler is deterministic and ignores eta.")
 
         dm = self.dm
         device = dm.betas.device
@@ -71,7 +73,7 @@ class MsgLdHeunSampler(Sampler):
 
         iterator = range(len(timesteps))
         if verbose:
-            iterator = tqdm(iterator, desc="Heun Sampler", total=len(timesteps))
+            iterator = tqdm(iterator, desc=f"{self.name} Sampler", total=len(timesteps))
 
         for i in iterator:
             t = torch.full((batch_size,), timesteps[i].item(), device=device, dtype=torch.long)
@@ -83,7 +85,7 @@ class MsgLdHeunSampler(Sampler):
             d = self._to_derivative(x, sigma, denoised)
             dt = sigma_next - sigma
 
-            if sigma_next.item() == 0.0:
+            if not self.use_correction or sigma_next.item() == 0.0:
                 x = x + d * dt
             else:
                 x_euler = x + d * dt
@@ -134,7 +136,7 @@ class MsgLdHeunSampler(Sampler):
             return (x_t - sqrt_one_minus_alpha * model_output) / sqrt_alpha
         if self.dm.parameterization == "x0":
             return model_output
-        raise NotImplementedError(f"Heun sampler does not support parameterization={self.dm.parameterization}")
+        raise NotImplementedError(f"{self.name} sampler does not support parameterization={self.dm.parameterization}")
 
     def _apply_model_cfg(
         self,
@@ -166,6 +168,13 @@ class MsgLdHeunSampler(Sampler):
         return self.dm
 
 
+class MsgLdEulerSampler(MsgLdHeunSampler):
+    """Deterministic first-order Euler sampler for the same sigma-space path."""
+
+    def __init__(self, diffusion_model):
+        super().__init__(diffusion_model, use_correction=False, name="Euler")
+
+
 class MsgLdSampler(Sampler):
     """
     Wraps MSG-LD's sampler options to satisfy the Sampler interface.
@@ -180,6 +189,7 @@ class MsgLdSampler(Sampler):
     def __init__(self, diffusion_model):
         self.dm = diffusion_model
         self._ddim = DDIMSampler(diffusion_model)
+        self._euler = MsgLdEulerSampler(diffusion_model)
         self._heun = MsgLdHeunSampler(diffusion_model)
 
     @torch.no_grad()
@@ -199,8 +209,9 @@ class MsgLdSampler(Sampler):
     ) -> torch.Tensor:
         sampler_type = sampler_type.lower()
 
-        if sampler_type == "heun":
-            return self._heun.sample(
+        if sampler_type in {"euler", "heun"}:
+            ode_sampler = self._euler if sampler_type == "euler" else self._heun
+            return ode_sampler.sample(
                 shape=shape,
                 conditioning=conditioning,
                 steps=steps,
@@ -213,7 +224,7 @@ class MsgLdSampler(Sampler):
             )
 
         if sampler_type != "ddim":
-            raise ValueError(f"Unknown sampler_type={sampler_type}. Expected 'ddim' or 'heun'.")
+            raise ValueError(f"Unknown sampler_type={sampler_type}. Expected 'ddim', 'euler', or 'heun'.")
 
         uncond = self.dm.cond_stage_model.get_unconditional_condition(batch_size)
         samples, _ = self._ddim.sample(

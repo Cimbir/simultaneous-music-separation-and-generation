@@ -5,7 +5,7 @@ STEM_NAMES = ["bass", "drums", "guitar", "piano"]
 
 
 @torch.no_grad()
-def _run_ddim(
+def _run_sampler(
     sampler,
     conditioning, # (B, num_stems, z_ch, T, F) - mixture VAE latent replicated per stem
     *,
@@ -15,12 +15,15 @@ def _run_ddim(
     ddim_eta=1.0, # 0 = deterministic, 1 = full stochastic (DDPM-like)
     cfg_scale=1.0, # 1.0 = no guidance, >1 amplifies conditioning vs zero baseline
     batch_size=1,
+    seed=None,
+    x_T=None,
 ):
     """
     Core diffusion sampling.
 
     sampler_type:
         "ddim" uses the original DDIM update.
+        "euler" uses a deterministic first-order ODE update.
         "heun" uses a deterministic second-order Heun update.
 
     ddim_discretize:
@@ -31,6 +34,14 @@ def _run_ddim(
     """
     dm = sampler.get_diffusion_model()
     shape = (dm.num_stems, dm.z_channels, dm.latent_t_size, dm.latent_f_size)
+    if seed is not None and x_T is not None:
+        raise ValueError("Pass either seed or x_T, not both.")
+
+    if seed is not None:
+        device = dm.betas.device
+        generator = torch.Generator()
+        generator.manual_seed(seed)
+        x_T = torch.randn((batch_size, *shape), generator=generator).to(device)
 
     samples = sampler.sample(
         steps=ddim_steps,
@@ -42,6 +53,7 @@ def _run_ddim(
         sampler_type=sampler_type,
         verbose=False,
         cfg_scale=cfg_scale,
+        x_T=x_T,
     )
     return samples
 
@@ -82,6 +94,8 @@ def generate_stems(
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0,
+    seed=None,
+    x_T=None,
 ):
     """
     Generate all 4 stems from scratch (unconditional).
@@ -94,13 +108,15 @@ def generate_stems(
         mels : float tensor (num_stems, 1, n_mels, T_mel)
 
     Args:
-        sampler_type : "ddim" or "heun".
-        ddim_discretize : DDIM/Heun timestep spacing, "uniform" or "quad".
+        sampler_type : "ddim", "euler", or "heun".
+        ddim_discretize : DDIM/Euler/Heun timestep spacing, "uniform" or "quad".
+        seed : optional random seed for reproducible initial noise.
+        x_T : optional fixed initial latent noise, shape (B, S, C, T, F).
     """
     dm = sampler.get_diffusion_model()
     dm.eval()
     cond = dm.cond_stage_model.get_unconditional_condition(1) # zeros (1, S, C, T, F)
-    samples = _run_ddim(
+    samples = _run_sampler(
         sampler,
         cond,
         sampler_type=sampler_type,
@@ -108,6 +124,8 @@ def generate_stems(
         ddim_discretize=ddim_discretize,
         ddim_eta=ddim_eta,
         cfg_scale=1.0,
+        seed=seed,
+        x_T=x_T,
     )
     audio, mels = _decode_samples(samples, dm, vae, vocoder)
     return audio[0], mels[0]
@@ -128,21 +146,25 @@ def separate_mixture(
     ddim_eta=1.0,
     cfg_scale=3.0,
     target_length=1024,
+    seed=None,
+    x_T=None,
 ):
     """
     Separate a mixture audio clip into individual stems using MSG-LD.
 
     1. Encode mixture via VAE -> replicate latent across stems as conditioning.
-    2. Reverse-diffuse from Gaussian noise guided by that mixture latent (DDIM + CFG).
+    2. Reverse-diffuse from Gaussian noise guided by that mixture latent.
     3. Decode each stem latent via VAE + HiFiGAN.
 
     Args:
         mixture_audio : 1-D float32 numpy array in [-1, 1], any length
         sr : sample rate
-        sampler_type : "ddim" or "heun"
-        ddim_discretize : DDIM/Heun timestep spacing, "uniform" or "quad"
+        sampler_type : "ddim", "euler", or "heun"
+        ddim_discretize : DDIM/Euler/Heun timestep spacing, "uniform" or "quad"
         cfg_scale : guidance strength; 1 = none, 3-5 = recommended for separation
         target_length : mel frames to use — must match latent_t_size * VAE time stride (= 1024 for default config at 16 kHz, hop=160)
+        seed : optional random seed for reproducible initial noise.
+        x_T : optional fixed initial latent noise, shape (B, S, C, T, F).
 
     Returns:
         audio : int16 numpy   (num_stems, num_samples)
@@ -162,13 +184,15 @@ def separate_mixture(
     cond = dm.get_conditioning({"fbank": mel.unsqueeze(0)})
 
     # 2. Reverse diffusion
-    samples = _run_ddim(
+    samples = _run_sampler(
         sampler, cond,
         sampler_type=sampler_type,
         ddim_steps=ddim_steps,
         ddim_discretize=ddim_discretize,
         ddim_eta=ddim_eta,
         cfg_scale=cfg_scale,
+        seed=seed,
+        x_T=x_T,
     )
 
     # 3. Decode
