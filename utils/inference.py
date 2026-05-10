@@ -9,6 +9,7 @@ def _run_ddim(
     sampler,
     conditioning, # (B, num_stems, z_ch, T, F) - mixture VAE latent replicated per stem
     *,
+    sampler_type="ddim",
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0, # 0 = deterministic, 1 = full stochastic (DDPM-like)
@@ -16,7 +17,11 @@ def _run_ddim(
     batch_size=1,
 ):
     """
-    Core DDIM sampling.
+    Core diffusion sampling.
+
+    sampler_type:
+        "ddim" uses the original DDIM update.
+        "heun" uses a deterministic second-order Heun update.
 
     ddim_discretize:
         "uniform" keeps evenly spaced training timesteps.
@@ -34,6 +39,7 @@ def _run_ddim(
         conditioning=conditioning,
         eta=ddim_eta,
         ddim_discretize=ddim_discretize,
+        sampler_type=sampler_type,
         verbose=False,
         cfg_scale=cfg_scale,
     )
@@ -43,7 +49,7 @@ def _run_ddim(
 @torch.no_grad()
 def _decode_samples(samples, dm, vae, vocoder):
     """
-    Decode DDIM latents -> per-stem audio.
+    Decode sampled latents -> per-stem audio.
 
     Flow:
         (B, S, C, T, F) / scale_factor -> reshape (B*S, C, T, F)
@@ -72,6 +78,7 @@ def generate_stems(
     vae,
     vocoder,
     *,
+    sampler_type="ddim",
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0,
@@ -85,6 +92,10 @@ def generate_stems(
     Returns:
         audio : int16 numpy (num_stems, num_samples)
         mels : float tensor (num_stems, 1, n_mels, T_mel)
+
+    Args:
+        sampler_type : "ddim" or "heun".
+        ddim_discretize : DDIM/Heun timestep spacing, "uniform" or "quad".
     """
     dm = sampler.get_diffusion_model()
     dm.eval()
@@ -92,6 +103,7 @@ def generate_stems(
     samples = _run_ddim(
         sampler,
         cond,
+        sampler_type=sampler_type,
         ddim_steps=ddim_steps,
         ddim_discretize=ddim_discretize,
         ddim_eta=ddim_eta,
@@ -110,6 +122,7 @@ def separate_mixture(
     vocoder,
     mel_extractor,
     *,
+    sampler_type="ddim",
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0,
@@ -126,7 +139,8 @@ def separate_mixture(
     Args:
         mixture_audio : 1-D float32 numpy array in [-1, 1], any length
         sr : sample rate
-        ddim_discretize : DDIM timestep spacing, "uniform" or "quad"
+        sampler_type : "ddim" or "heun"
+        ddim_discretize : DDIM/Heun timestep spacing, "uniform" or "quad"
         cfg_scale : guidance strength; 1 = none, 3-5 = recommended for separation
         target_length : mel frames to use — must match latent_t_size * VAE time stride (= 1024 for default config at 16 kHz, hop=160)
 
@@ -147,9 +161,10 @@ def separate_mixture(
 
     cond = dm.get_conditioning({"fbank": mel.unsqueeze(0)})
 
-    # 2. DDIM reverse diffusion
+    # 2. Reverse diffusion
     samples = _run_ddim(
         sampler, cond,
+        sampler_type=sampler_type,
         ddim_steps=ddim_steps,
         ddim_discretize=ddim_discretize,
         ddim_eta=ddim_eta,
