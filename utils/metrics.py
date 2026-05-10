@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from scipy import linalg
+import torchaudio
 
 
 def mel_mse(
@@ -17,7 +18,7 @@ def mel_mse(
     if per_stem and mel_pred.dim() >= 3:
         B, S = mel_pred.shape[0], mel_pred.shape[1]
         pred_flat = mel_pred.reshape(B, S, -1)
-        tgt_flat  = mel_target.reshape(B, S, -1)
+        tgt_flat = mel_target.reshape(B, S, -1)
         return F.mse_loss(pred_flat, tgt_flat, reduction="none").mean(dim=(0, 2))
     return F.mse_loss(mel_pred, mel_target)
 
@@ -83,21 +84,19 @@ class FADEvaluator:
 
     def _build_vggish(self) -> Callable:
         try:
-            import torchaudio
-
             bundle = torchaudio.pipelines.VGGISH
             model  = bundle.get_model().to(self.device).eval()
 
             @torch.no_grad()
             def embed(audio: np.ndarray, sr: int) -> np.ndarray:
-                waveform = torch.from_numpy(audio).unsqueeze(0)  # (1, T)
+                waveform = torch.from_numpy(audio).unsqueeze(0) # (1, T)
                 if sr != bundle.sample_rate:
                     waveform = torchaudio.functional.resample(
                         waveform, sr, bundle.sample_rate
                     )
                 waveform = waveform.to(self.device)
-                emb = model(waveform)   # (N_windows, 128)
-                return emb.mean(dim=0).cpu().numpy()  # (128,)
+                emb = model(waveform) # (N_windows, 128)
+                return emb.mean(dim=0).cpu().numpy() # (128,)
 
             return embed
 
@@ -112,5 +111,5 @@ class FADEvaluator:
 def _embedding_statistics(
     embeddings: List[np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray]:
-    mat = np.stack(embeddings, axis=0)  # (N, D)
+    mat = np.stack(embeddings, axis=0) # (N, D)
     return mat.mean(axis=0), np.cov(mat, rowvar=False)
