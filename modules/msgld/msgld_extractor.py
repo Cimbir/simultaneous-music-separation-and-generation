@@ -18,11 +18,20 @@ class MsgLdMelExtractor(MelExtractor):
         mel_fmin: float = 0,
         mel_fmax: float = 8000,
     ):
+        self._sampling_rate = int(sampling_rate)
+        self._hop_length = int(hop_length)
         self.stft = TacotronSTFT(
             filter_length, hop_length, win_length,
             n_mel_channels, sampling_rate, mel_fmin, mel_fmax,
         )
-        self.sampling_rate = sampling_rate
+
+    @property
+    def sampling_rate(self) -> int:
+        return self._sampling_rate
+
+    @property
+    def hop_length(self) -> int:
+        return self._hop_length
 
     def audio_to_mel(self, audio: np.ndarray, sr: int | None = None) -> torch.Tensor:
         if sr is not None and sr != self.sampling_rate:
