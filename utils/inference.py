@@ -186,3 +186,8 @@ def separate_mixture(
         cursor += bs
 
     return _dispatch(jobs, primary_dm, vae, vocoder, primary)
+
+def change_max_batches(start_new_max, new_max):
+    global INITIAL_MAX_BATCH_SIZE, MAX_BATCH_SIZE
+    INITIAL_MAX_BATCH_SIZE = start_new_max
+    MAX_BATCH_SIZE = new_max
