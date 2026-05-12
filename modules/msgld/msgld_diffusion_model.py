@@ -24,6 +24,7 @@ class MsgLdDiffusionWrapper(nn.Module):
         if self.conditioning_key is None:
             return self.diffusion_model(x, t)
         elif self.conditioning_key == "concat" and c is not None:
+            c = [ci.to(x.device) for ci in c]
             xc = torch.cat([x] + c, dim=2)
             return self.diffusion_model(xc, t)
         elif self.conditioning_key == "crossattn" and c is not None:
@@ -240,6 +241,8 @@ class MsgLdDiffusionModel(DiffusionModel):
         self.logvar = self.logvar.to(device)
         self.vae.to(device)
         self.cond_stage_model.device_fn = lambda: torch.device(self._device)
+        self.cond_stage_model.encode_first_stage = self._encode_first_stage_raw
+        self.cond_stage_model.get_first_stage_encoding = self._get_first_stage_encoding
         return self
 
     def parameters(self):

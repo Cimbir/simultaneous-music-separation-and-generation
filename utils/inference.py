@@ -78,7 +78,11 @@ def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev):
                     raw[i] = _run_ddim(samp, cond, steps=steps, eta=eta, cfg=cfg, bs=bs).cpu()
             print(f"Worker {indices[0]} finished.")
         except Exception as e:
-            print(f"Worker {indices[0]} encountered an error: {e}")
+            if "out of memory" in str(e).lower():
+                print(f"Worker {indices[0]} OOM — flushing intermediate GPU tensors...")
+                torch.cuda.empty_cache()
+            else:
+                print(f"Worker {indices[0]} encountered an error: {e}")
             errors.append(e)
 
     if len(groups) == 1:
@@ -131,7 +135,12 @@ def generate_stems(
             cond = w_samplers[wi].get_diffusion_model().cond_stage_model.get_unconditional_condition(bs)
         jobs.append((wi, w_samplers[wi], cond, bs, ddim_steps, ddim_eta, 1.0))
 
-    return _dispatch(jobs, primary_dm, vae, vocoder, primary)
+    try:
+        return _dispatch(jobs, primary_dm, vae, vocoder, primary)
+    finally:
+        del jobs
+        w_samplers[1:] = []
+        torch.cuda.empty_cache()
 
 
 def separate_mixture(
@@ -188,7 +197,12 @@ def separate_mixture(
         jobs.append((wi, w_samplers[wi], cond, bs, ddim_steps, ddim_eta, cfg_scale))
         cursor += bs
 
-    return _dispatch(jobs, primary_dm, vae, vocoder, primary)
+    try:
+        return _dispatch(jobs, primary_dm, vae, vocoder, primary)
+    finally:
+        del jobs
+        w_samplers[1:] = []
+        torch.cuda.empty_cache()
 
 def change_max_batches(start_new_max, new_max):
     global INITIAL_MAX_BATCH_SIZE, MAX_BATCH_SIZE
