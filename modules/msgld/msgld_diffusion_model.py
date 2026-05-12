@@ -239,6 +239,7 @@ class MsgLdDiffusionModel(DiffusionModel):
         self.cond_stage_model.to(device)
         self.logvar = self.logvar.to(device)
         self.vae.to(device)
+        self.cond_stage_model.device_fn = lambda: torch.device(self._device)
         return self
 
     def parameters(self):
