@@ -71,11 +71,14 @@ def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev):
 
     def run(indices):
         try:
+            print(f"Worker {indices[0]} starting with {len(indices)} batches...")
             for i in indices:
                 wi, samp, cond, bs, steps, eta, cfg = jobs[i]
                 with torch.no_grad():
                     raw[i] = _run_ddim(samp, cond, steps=steps, eta=eta, cfg=cfg, bs=bs).cpu()
+            print(f"Worker {indices[0]} finished.")
         except Exception as e:
+            print(f"Worker {indices[0]} encountered an error: {e}")
             errors.append(e)
 
     if len(groups) == 1:
