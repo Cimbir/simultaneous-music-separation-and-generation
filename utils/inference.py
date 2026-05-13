@@ -1,11 +1,21 @@
 
+import numpy as np, soundfile as sf
 import copy, threading, torch
 from collections import defaultdict
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 STEM_NAMES = ["bass", "drums", "guitar", "piano"]
-INITIAL_MAX_BATCH_SIZE = 1 # primary GPU. less because also holds the VAE and vocoder
+INITIAL_MAX_BATCH_SIZE = 2 # primary GPU. less because also holds the VAE and vocoder
 MAX_BATCH_SIZE = 4 # worker GPUs
+
+
+def _save_stems(out_dir: Path, audio, mels, sr) -> None:
+    """Save one result: per-stem WAVs and mels.npz into out_dir."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for i, name in enumerate(STEM_NAMES):
+        sf.write(str(out_dir / f"{name}.wav"), audio[i], sr, subtype="PCM_16")
+    np.savez_compressed(str(out_dir / "mels.npz"), mels=mels.cpu().numpy())
 
 
 def _resolve_devices(devices=None):
@@ -62,7 +72,7 @@ def _allot(n_samples, n_workers):
     return jobs # [(worker_idx, batch_size)]
 
 
-def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev):
+def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev, leave_as_latent):
     raw = [None] * len(jobs)
     errors = []
     groups = defaultdict(list)
@@ -94,6 +104,9 @@ def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev):
 
     if errors:
         raise errors[0]
+    
+    if leave_as_latent:
+        return raw
 
     out = []
     for s in raw:
@@ -105,19 +118,24 @@ def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev):
 
 
 def generate_stems(
-    sampler, 
-    vae, 
-    vocoder, 
-    *, 
+    sampler,
+    vae,
+    vocoder,
+    *,
     n_samples=1,
     devices=None,
-    ddim_steps=200, 
-    ddim_eta=1.0
+    ddim_steps=200,
+    ddim_eta=1.0,
+    leave_as_latent=False,
+    out_dir: Optional[str] = None,
 ) -> List[Tuple]:
     """
     Returns List of n_samples (audio, mels):
         audio : int16 numpy (num_stems, num_samples)
-        mels : float tensor (num_stems, 1, n_mels, T_mel)
+        mels : float tensor (num_stems, 1, n_mels, T_mel)}
+    If leave_as_latent is True, returns List of n_samples tensors
+        (num_stems, z_channels, latent_t_size, latent_f_size)
+    If out_dir is given, each sample is saved to out_dir/sample_NNNN/.
     """
     resolved = _resolve_devices(devices)
     primary = resolved[0]
@@ -136,32 +154,44 @@ def generate_stems(
         jobs.append((wi, w_samplers[wi], cond, bs, ddim_steps, ddim_eta, 1.0))
 
     try:
-        return _dispatch(jobs, primary_dm, vae, vocoder, primary)
+        results = _dispatch(jobs, primary_dm, vae, vocoder, primary, leave_as_latent=leave_as_latent)
     finally:
         del jobs
         w_samplers[1:] = []
         torch.cuda.empty_cache()
 
+    if out_dir is not None and not leave_as_latent:
+        root = Path(out_dir)
+        for i, (audio, mels) in enumerate(results):
+            _save_stems(root / f"sample_{i:04d}", audio, mels, vocoder.sample_rate)
+
+    return results
+
 
 def separate_mixture(
-    mixture_audio, 
-    sr, 
-    sampler, 
-    vae, 
-    vocoder, 
-    mel_extractor, 
+    mixture_audio,
+    sr,
+    sampler,
+    vae,
+    vocoder,
+    mel_extractor,
     *,
-    devices=None, 
-    ddim_steps=200, 
+    devices=None,
+    ddim_steps=200,
     ddim_eta=1.0,
-    cfg_scale=3.0, 
-    target_length=1024
+    cfg_scale=3.0,
+    target_length=1024,
+    leave_as_latent=False,
+    out_dir: Optional[str] = None,
 ) -> List[Tuple]:
     """
-    mixture_audio: int16 numpy (num_samples,) or List of int16 numpy (num_samples,)
+    mixture_audio: float/int16 numpy (num_samples,) or List of such arrays
     Returns List of n_samples (audio, mels):
         audio : int16 numpy  (num_stems, num_samples)
         mels  : float tensor (num_stems, 1, n_mels, T_mel)
+    If leave_as_latent is True, returns List of n_samples tensors
+        (num_stems, z_channels, latent_t_size, latent_f_size)
+    If out_dir is given, each result is saved to out_dir/sample_NNNN/.
     """
     resolved = _resolve_devices(devices)
     primary = resolved[0]
@@ -198,13 +228,43 @@ def separate_mixture(
         cursor += bs
 
     try:
-        return _dispatch(jobs, primary_dm, vae, vocoder, primary)
+        results = _dispatch(jobs, primary_dm, vae, vocoder, primary, leave_as_latent=leave_as_latent)
     finally:
         del jobs
         w_samplers[1:] = []
         torch.cuda.empty_cache()
 
+    if out_dir is not None and not leave_as_latent:
+        root = Path(out_dir)
+        for i, (audio, mels) in enumerate(results):
+            _save_stems(root / f"sample_{i:04d}", audio, mels, vocoder.sample_rate)
+
+    return results
+
+
 def change_max_batches(start_new_max, new_max):
     global INITIAL_MAX_BATCH_SIZE, MAX_BATCH_SIZE
     INITIAL_MAX_BATCH_SIZE = start_new_max
     MAX_BATCH_SIZE = new_max
+    
+def load_saved_stems(
+    path: str
+):
+    """Load generated stems from a previous run, given the path to the sample directory."""
+    path = Path(path)
+    
+    mels_path = path / "mels.npz"
+    if not mels_path.exists():
+        raise FileNotFoundError(f"Expected mels.npz file not found: {mels_path}")
+    mels_data = np.load(mels_path)
+    mels = mels_data["mels"]  # (num_stems, 1, n_mels, T_mel)
+
+    res = {}
+    for i, name in enumerate(STEM_NAMES):
+        wav_path = path / f"{name}.wav"
+        if not wav_path.exists():
+            raise FileNotFoundError(f"Expected WAV file not found: {wav_path}")
+        stem_audio, sr = sf.read(wav_path, dtype="int16")
+        res[name] = (stem_audio, mels[i], sr)
+
+    return res
