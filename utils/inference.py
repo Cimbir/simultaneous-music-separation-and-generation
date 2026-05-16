@@ -1,4 +1,4 @@
-
+import gc
 import numpy as np, soundfile as sf
 import copy, threading, torch
 from collections import defaultdict
@@ -28,8 +28,24 @@ def _resolve_devices(devices=None):
 
 def _build_worker_sampler(sampler, device):
     dm = sampler.get_diffusion_model()
-    dm = copy.deepcopy(dm).to(device).eval()
-    return type(sampler)(dm)
+    worker_dm = copy.deepcopy(dm).to(device).eval()
+    worker_dm.vae.cpu()
+    return type(sampler)(worker_dm)
+
+
+def _cleanup_workers(w_samplers: list) -> None:
+    """
+    Explicitly move worker models to CPU before releasing, then flush the CUDA cache.
+    The first one is the primary, so we don't move it
+    """
+    for ws in w_samplers[1:]:
+        try:
+            ws.get_diffusion_model().cpu()
+        except Exception:
+            pass
+    w_samplers[1:] = []
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 def _run_ddim(
@@ -86,13 +102,14 @@ def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev, leave_as_latent):
                 wi, samp, cond, bs, steps, eta, cfg = jobs[i]
                 with torch.no_grad():
                     raw[i] = _run_ddim(samp, cond, steps=steps, eta=eta, cfg=cfg, bs=bs).cpu()
+                torch.cuda.empty_cache()
             print(f"Worker {indices[0]} finished.")
         except Exception as e:
             if "out of memory" in str(e).lower():
-                print(f"Worker {indices[0]} OOM — flushing intermediate GPU tensors...")
-                torch.cuda.empty_cache()
+                print(f"Worker {indices[0]} OOM")
             else:
                 print(f"Worker {indices[0]} encountered an error: {e}")
+            torch.cuda.empty_cache()
             errors.append(e)
 
     if len(groups) == 1:
@@ -109,11 +126,14 @@ def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev, leave_as_latent):
         return raw
 
     out = []
-    for s in raw:
+    for idx in range(len(raw)):
         with torch.no_grad():
-            audio, mels = _decode(s.to(primary_dev), primary_dm, vae, vocoder)
+            audio, mels = _decode(raw[idx].to(primary_dev), primary_dm, vae, vocoder)
+        raw[idx] = None
         for j in range(audio.shape[0]):
             out.append((audio[j], mels[j].cpu()))
+        del audio, mels
+        torch.cuda.empty_cache()
     return out
 
 
@@ -157,8 +177,7 @@ def generate_stems(
         results = _dispatch(jobs, primary_dm, vae, vocoder, primary, leave_as_latent=leave_as_latent)
     finally:
         del jobs
-        w_samplers[1:] = []
-        torch.cuda.empty_cache()
+        _cleanup_workers(w_samplers)
 
     if out_dir is not None and not leave_as_latent:
         root = Path(out_dir)
@@ -231,8 +250,9 @@ def separate_mixture(
         results = _dispatch(jobs, primary_dm, vae, vocoder, primary, leave_as_latent=leave_as_latent)
     finally:
         del jobs
-        w_samplers[1:] = []
-        torch.cuda.empty_cache()
+        cond_cache.clear()
+        del cond_cache
+        _cleanup_workers(w_samplers)
 
     if out_dir is not None and not leave_as_latent:
         root = Path(out_dir)
@@ -257,7 +277,7 @@ def load_saved_stems(
     if not mels_path.exists():
         raise FileNotFoundError(f"Expected mels.npz file not found: {mels_path}")
     mels_data = np.load(mels_path)
-    mels = mels_data["mels"]  # (num_stems, 1, n_mels, T_mel)
+    mels = mels_data["mels"] # (num_stems, 1, n_mels, T_mel)
 
     res = {}
     for i, name in enumerate(STEM_NAMES):
