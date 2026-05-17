@@ -79,14 +79,14 @@ def save_sep_originals(
         mix_path = os.path.join(sample_dir, "mixture.wav")
         sf.write(mix_path, mix_clip, mel_extractor.sampling_rate)
         
-        mix_mel = mel_extractor.extract_mel(mix_clip)
+        mix_mel = mel_extractor.audio_to_mel(mix_clip)
         np.save(os.path.join(sample_dir, "mixture_mel.npy"), mix_mel)
         
         for stem_idx, (stem_audio, stem_name) in enumerate(zip(stems_clip, STEM_NAMES)):
             stem_path = os.path.join(sample_dir, f"{stem_name}.wav")
             sf.write(stem_path, stem_audio, mel_extractor.sampling_rate)
             
-            stem_mel = mel_extractor.extract_mel(stem_audio)
+            stem_mel = mel_extractor.audio_to_mel(stem_audio)
             np.save(os.path.join(sample_dir, f"{stem_name}_mel.npy"), stem_mel)
         
         print(f"Saved originals for sample {start_from + sample_idx:04d}")
