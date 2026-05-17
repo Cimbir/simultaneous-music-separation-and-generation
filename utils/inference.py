@@ -1,13 +1,13 @@
 import gc
 import numpy as np, soundfile as sf
-import copy, threading, torch
+import threading, torch
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 STEM_NAMES = ["bass", "drums", "guitar", "piano"]
-INITIAL_MAX_BATCH_SIZE = 2 # primary GPU. less because also holds the VAE and vocoder
-MAX_BATCH_SIZE = 4 # worker GPUs
+INITIAL_MAX_BATCH_SIZE = 1 # primary GPU. less because also holds the VAE and vocoder
+MAX_BATCH_SIZE = 1 # worker GPUs
 
 
 def _save_stems(out_dir: Path, audio, mels, sr) -> None:
@@ -28,21 +28,13 @@ def _resolve_devices(devices=None):
 
 def _build_worker_sampler(sampler, device):
     dm = sampler.get_diffusion_model()
-    worker_dm = copy.deepcopy(dm).to(device).eval()
-    worker_dm.vae.cpu()
-    return type(sampler)(worker_dm)
+    return type(sampler)(dm.fork(device))
 
 
 def _cleanup_workers(w_samplers: list) -> None:
-    """
-    Explicitly move worker models to CPU before releasing, then flush the CUDA cache.
-    The first one is the primary, so we don't move it
-    """
+    """Move worker models off GPU, break reference cycles, then flush CUDA cache"""
     for ws in w_samplers[1:]:
-        try:
-            ws.get_diffusion_model().cpu()
-        except Exception:
-            pass
+        ws.get_diffusion_model().to('cpu')
     w_samplers[1:] = []
     gc.collect()
     torch.cuda.empty_cache()
@@ -148,6 +140,7 @@ def generate_stems(
     ddim_eta=1.0,
     leave_as_latent=False,
     out_dir: Optional[str] = None,
+    start_from: Optional[int] = 0,
 ) -> List[Tuple]:
     """
     Returns List of n_samples (audio, mels):
@@ -182,7 +175,7 @@ def generate_stems(
     if out_dir is not None and not leave_as_latent:
         root = Path(out_dir)
         for i, (audio, mels) in enumerate(results):
-            _save_stems(root / f"sample_{i:04d}", audio, mels, vocoder.sample_rate)
+            _save_stems(root / f"sample_{(i + start_from):04d}", audio, mels, vocoder.sample_rate)
 
     return results
 
@@ -202,6 +195,7 @@ def separate_mixture(
     target_length=1024,
     leave_as_latent=False,
     out_dir: Optional[str] = None,
+    start_from: Optional[int] = 0,
 ) -> List[Tuple]:
     """
     mixture_audio: float/int16 numpy (num_samples,) or List of such arrays
@@ -257,7 +251,7 @@ def separate_mixture(
     if out_dir is not None and not leave_as_latent:
         root = Path(out_dir)
         for i, (audio, mels) in enumerate(results):
-            _save_stems(root / f"sample_{i:04d}", audio, mels, vocoder.sample_rate)
+            _save_stems(root / f"sample_{(i + start_from):04d}", audio, mels, vocoder.sample_rate)
 
     return results
 

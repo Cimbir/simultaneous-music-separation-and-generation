@@ -1,12 +1,55 @@
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from scipy import linalg
 import torchaudio
+
+_STEM_NAMES = ["bass", "drums", "guitar", "piano"]
+
+def evaluate_separation(
+    original_mels: List[torch.Tensor],
+    separated_mels: List[torch.Tensor],
+    log: bool = False,
+) -> Dict[str, List[float]]:
+    """
+    Compute mel-domain MSE per instrument between original and separated stems.
+
+    Each element must be a float tensor of shape (S, n_mels, T) where
+    S == len(_STEM_NAMES).  Time dimensions that differ are cropped to the shorter.
+
+    Returns:
+        dict  stem_name -> list[float] (one MSE per sample).
+    """
+    if len(original_mels) != len(separated_mels):
+        raise ValueError(
+            f"original_mels has {len(original_mels)} samples but separated_mels has {len(separated_mels)}."
+        )
+
+    per_stem: Dict[str, List[float]] = {name: [] for name in _STEM_NAMES}
+
+    for orig, sep in zip(original_mels, separated_mels):
+        T = min(orig.shape[-1], sep.shape[-1])
+        orig, sep = orig[..., :T], sep[..., :T]
+        for i, name in enumerate(_STEM_NAMES):
+            per_stem[name].append(F.mse_loss(sep[i], orig[i]).item())
+
+    if log:
+        all_vals = [v for vals in per_stem.values() for v in vals]
+        print(f"{'Stem':<10} {'Mean MSE':>12} {'Std':>10} {'N':>4}")
+        for name in _STEM_NAMES:
+            vals = per_stem[name]
+            if vals:
+                print(f"{name:<10} {np.mean(vals):>12.4f} {np.std(vals):>10.4f} {len(vals):>4}")
+            else:
+                print(f"{name:<10} {'N/A':>12}")
+        if all_vals:
+            print(f"{'Overall':<10} {np.mean(all_vals):>12.4f} {np.std(all_vals):>10.4f} {len(all_vals):>4}")
+
+    return per_stem
 
 
 def mel_mse(

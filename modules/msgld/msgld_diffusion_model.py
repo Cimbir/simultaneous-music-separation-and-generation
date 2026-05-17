@@ -78,6 +78,15 @@ class MsgLdCondModel(nn.Module):
         return expanded.detach()
 
 
+class _StubVAE:
+    """No-op VAE placeholder for worker models that only run the denoising UNet"""
+    def to(self, *args, **kwargs): return self
+    def cpu(self): return self
+    def eval(self): return self
+    def encode(self, x):
+        raise RuntimeError("Worker diffusion models do not use the VAE")
+
+
 class MsgLdDiffusionModel(DiffusionModel):
     """
     Full MSG-LD latent diffusion model
@@ -164,6 +173,41 @@ class MsgLdDiffusionModel(DiffusionModel):
 
         # Logvar
         self.logvar = nn.Parameter(torch.full((timesteps,), 0.0))
+
+        # Store constructor kwargs so fork() can recreate a fresh instance
+        self._ctor_kwargs = dict(
+            model_channels=model_channels,
+            channel_mult=channel_mult,
+            num_res_blocks=num_res_blocks,
+            attention_resolutions=attention_resolutions,
+            num_head_channels=num_head_channels,
+            num_stems=num_stems,
+            z_channels=z_channels,
+            timesteps=timesteps,
+            linear_start=linear_start,
+            linear_end=linear_end,
+            parameterization=parameterization,
+            conditioning_key=conditioning_key,
+            unconditional_prob=unconditional_prob,
+            scale_by_std=scale_by_std,
+            scale_factor=scale_factor,
+            latent_t_size=latent_t_size,
+            latent_f_size=latent_f_size,
+        )
+
+    def fork(self, device) -> "MsgLdDiffusionModel":
+        """
+        Create a copy of this model on *device
+        Used for workers on other GPUs
+        """
+        worker = type(self)(
+            vae=_StubVAE(),
+            mel_extractor=self.mel_extractor,
+            **self._ctor_kwargs,
+        )
+        worker.load_state_dict(self.state_dict())
+        worker.to(device).eval()
+        return worker
 
     @property
     def device(self) -> torch.device:
