@@ -5,6 +5,10 @@ from modules.abstractions.vae import VAE
 from modules.abstractions.extractor import MelExtractor
 import torch
 from utils.latent import encode_audio
+from typing import List, Tuple
+import os
+
+STEM_NAMES = ["bass", "drums", "guitar", "piano"]
 
 
 def save_encoded(enc: dict, path: str):
@@ -59,3 +63,44 @@ def encode_and_save_dataset(
         save_encoded(enc, str(out_path))
 
     print(f"Done. Encoded latents saved to {output_dir}")
+    
+    
+def save_sep_originals(
+    mix_clips: List[np.ndarray],
+    original_stems_batch: List[List[np.ndarray]],
+    mel_extractor: MelExtractor,
+    originals_path: str,
+    start_from: int = 0,
+):
+    for sample_idx, (mix_clip, stems_clip) in enumerate(zip(mix_clips, original_stems_batch)):
+        sample_dir = os.path.join(originals_path, f"sample_{start_from + sample_idx:04d}")
+        os.makedirs(sample_dir, exist_ok=True)
+        
+        mix_path = os.path.join(sample_dir, "mixture.wav")
+        sf.write(mix_path, mix_clip, mel_extractor.sampling_rate)
+        
+        mix_mel = mel_extractor.audio_to_mel(mix_clip)
+        np.save(os.path.join(sample_dir, "mixture_mel.npy"), mix_mel)
+        
+        for stem_idx, (stem_audio, stem_name) in enumerate(zip(stems_clip, STEM_NAMES)):
+            stem_path = os.path.join(sample_dir, f"{stem_name}.wav")
+            sf.write(stem_path, stem_audio, mel_extractor.sampling_rate)
+            
+            stem_mel = mel_extractor.audio_to_mel(stem_audio)
+            np.save(os.path.join(sample_dir, f"{stem_name}_mel.npy"), stem_mel)
+        
+        print(f"Saved originals for sample {start_from + sample_idx:04d}")
+        
+def load_sep_originals(
+    sample_dir: str,
+) -> Tuple[np.ndarray, List[np.ndarray]]:
+    mix_mel = np.load(os.path.join(sample_dir, "mixture_mel.npy"))
+    stem_mels = []
+    for stem_name in STEM_NAMES:
+        stem_mel_path = os.path.join(sample_dir, f"{stem_name}_mel.npy")
+        if os.path.exists(stem_mel_path):
+            stem_mels.append(np.load(stem_mel_path))
+        else:
+            print(f"Warning: missing mel for {stem_name} in {sample_dir}")
+            stem_mels.append(None)
+    return mix_mel, stem_mels

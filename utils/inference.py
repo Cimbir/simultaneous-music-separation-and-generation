@@ -1,21 +1,69 @@
-
-import torch
+import gc
+import numpy as np, soundfile as sf
+import threading, torch
+from collections import defaultdict
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 STEM_NAMES = ["bass", "drums", "guitar", "piano"]
+INITIAL_MAX_BATCH_SIZE = 1 # primary GPU. less because also holds the VAE and vocoder
+MAX_BATCH_SIZE = 1 # worker GPUs
+
+
+def _save_stems(out_dir: Path, audio, mels, sr) -> None:
+    """Save one result: per-stem WAVs and mels.npz into out_dir."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for i, name in enumerate(STEM_NAMES):
+        sf.write(str(out_dir / f"{name}.wav"), audio[i], sr, subtype="PCM_16")
+    np.savez_compressed(str(out_dir / "mels.npz"), mels=mels.cpu().numpy())
+
+
+def _resolve_devices(devices=None):
+    if devices is not None:
+        return [torch.device(d) for d in devices]
+    if torch.cuda.is_available():
+        return [torch.device(f"cuda:{i}") for i in range(torch.cuda.device_count())]
+    return [torch.device("cpu")]
+
+
+def _build_worker_sampler(sampler, device):
+    dm = sampler.get_diffusion_model()
+    return type(sampler)(dm.fork(device))
+
+
+def _cleanup_workers(w_samplers: list) -> None:
+    """Move worker models off GPU, break reference cycles, then flush CUDA cache"""
+    for ws in w_samplers[1:]:
+        ws.get_diffusion_model().to('cpu')
+    w_samplers[1:] = []
+    gc.collect()
+    torch.cuda.empty_cache()
+
+
+def _make_x_T(start_seed, bs, shape, device):
+    """Build initial noise. start_seed is the seed for the first sample in the batch;
+    each sample in the batch gets seed+k so identical batch elements are avoided."""
+    if start_seed is None:
+        return None
+    pieces = []
+    for k in range(bs):
+        g = torch.Generator()
+        g.manual_seed(start_seed + k)
+        pieces.append(torch.randn((1, *shape), generator=g))
+    return torch.cat(pieces, dim=0).to(device)
 
 
 @torch.no_grad()
 def _run_sampler(
     sampler,
-    conditioning, # (B, num_stems, z_ch, T, F) - mixture VAE latent replicated per stem
+    cond,
     *,
+    bs,
     sampler_type="ddim",
-    ddim_steps=200,
+    steps=200,
     ddim_discretize="uniform",
-    ddim_eta=1.0, # 0 = deterministic, 1 = full stochastic (DDPM-like)
-    cfg_scale=1.0, # 1.0 = no guidance, >1 amplifies conditioning vs zero baseline
-    batch_size=1,
-    seed=None,
+    eta=1.0,
+    cfg=1.0,
     x_T=None,
 ):
     """
@@ -23,115 +71,175 @@ def _run_sampler(
 
     sampler_type:
         "ddim" uses the original DDIM update.
-        "euler" uses a deterministic first-order ODE update.
-        "heun" uses a deterministic second-order Heun update.
+        "euler" deterministic first-order ODE.
+        "heun" deterministic second-order Heun.
 
     ddim_discretize:
-        "uniform" keeps evenly spaced training timesteps.
-        "quad" uses the latent-diffusion quadratic spacing.
+        "uniform" evenly spaced training timesteps.
+        "quad" quadratic spacing.
 
-    Returns: samples (B, num_stems, z_channels, T, F) in scaled latent space.
+    Returns: samples (bs, num_stems, z_channels, T, F) in scaled latent space.
     """
     dm = sampler.get_diffusion_model()
     shape = (dm.num_stems, dm.z_channels, dm.latent_t_size, dm.latent_f_size)
-    if seed is not None and x_T is not None:
-        raise ValueError("Pass either seed or x_T, not both.")
-
-    if seed is not None:
-        device = dm.betas.device
-        generator = torch.Generator()
-        generator.manual_seed(seed)
-        x_T = torch.randn((batch_size, *shape), generator=generator).to(device)
-
-    samples = sampler.sample(
-        steps=ddim_steps,
-        batch_size=batch_size,
+    return sampler.sample(
+        steps=steps,
+        batch_size=bs,
         shape=shape,
-        conditioning=conditioning,
-        eta=ddim_eta,
+        conditioning=cond,
+        eta=eta,
         ddim_discretize=ddim_discretize,
         sampler_type=sampler_type,
         verbose=False,
-        cfg_scale=cfg_scale,
+        cfg_scale=cfg,
         x_T=x_T,
     )
-    return samples
 
 
-@torch.no_grad()
-def _decode_samples(samples, dm, vae, vocoder):
-    """
-    Decode sampled latents -> per-stem audio.
-
-    Flow:
-        (B, S, C, T, F) / scale_factor -> reshape (B*S, C, T, F)
-        [VAE decode] -> mel  (B*S, 1, n_mels, T_mel)
-        [HiFiGAN] -> wav  (B*S, num_samples) int16
-        [reshape] -> (B, S, num_samples)
-
-    Returns:
-        audio : int16 numpy   (B, num_stems, num_samples)
-        mels  : float tensor  (B, num_stems, 1, n_mels, T_mel)
-    """
+def _decode(samples, dm, vae, vocoder):
+    # (B, S, C, T, F) -> audio (B, S, num_samples), mels (B, S, 1, n_mels, T_mel)
     B, S, C, T, F = samples.shape
-
     z = (samples / dm.scale_factor).reshape(B * S, C, T, F)
-    mels = vae.decode(z)
-    wav = vocoder.mel_to_audio(mels.squeeze(1))
-
-    audio = wav.reshape(B, S, -1)
-    mels = mels.reshape(B, S, *mels.shape[1:])
-    return audio, mels
+    m = vae.decode(z)
+    w = vocoder.mel_to_audio(m.squeeze(1))
+    return w.reshape(B, S, -1), m.reshape(B, S, *m.shape[1:])
 
 
-@torch.no_grad()
+def _allot(n_samples, n_workers):
+    base, extra = divmod(n_samples, n_workers)
+    jobs = []
+    for wi in range(n_workers):
+        count = base + (1 if wi < extra else 0)
+        bs = INITIAL_MAX_BATCH_SIZE if wi == 0 else MAX_BATCH_SIZE
+        for s in range(0, count, bs):
+            jobs.append((wi, min(bs, count - s)))
+    return jobs # [(worker_idx, batch_size)]
+
+
+def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev, leave_as_latent):
+    raw = [None] * len(jobs)
+    errors = []
+    groups = defaultdict(list)
+    for i, (wi, *_) in enumerate(jobs):
+        groups[wi].append(i)
+
+    def run(indices):
+        try:
+            print(f"Worker {indices[0]} starting with {len(indices)} batches...")
+            for i in indices:
+                _wi, samp, cond, bs, kwargs = jobs[i]
+                with torch.no_grad():
+                    raw[i] = _run_sampler(samp, cond, bs=bs, **kwargs).cpu()
+                torch.cuda.empty_cache()
+            print(f"Worker {indices[0]} finished.")
+        except Exception as e:
+            if "out of memory" in str(e).lower():
+                print(f"Worker {indices[0]} OOM")
+            else:
+                print(f"Worker {indices[0]} encountered an error: {e}")
+            torch.cuda.empty_cache()
+            errors.append(e)
+
+    if len(groups) == 1:
+        run(groups[0])
+    else:
+        ts = [threading.Thread(target=run, args=(groups[wi],), daemon=True) for wi in groups]
+        for t in ts: t.start()
+        for t in ts: t.join()
+
+    if errors:
+        raise errors[0]
+
+    if leave_as_latent:
+        return raw
+
+    out = []
+    for idx in range(len(raw)):
+        with torch.no_grad():
+            audio, mels = _decode(raw[idx].to(primary_dev), primary_dm, vae, vocoder)
+        raw[idx] = None
+        for j in range(audio.shape[0]):
+            out.append((audio[j], mels[j].cpu()))
+        del audio, mels
+        torch.cuda.empty_cache()
+    return out
+
+
 def generate_stems(
     sampler,
     vae,
     vocoder,
     *,
+    n_samples=1,
+    devices=None,
     sampler_type="ddim",
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0,
     seed=None,
-    x_T=None,
-):
+    leave_as_latent=False,
+    out_dir: Optional[str] = None,
+    start_from: Optional[int] = 0,
+) -> List[Tuple]:
     """
-    Generate all 4 stems from scratch (unconditional).
-
-    Conditions on an all-zero latent — the null token the model saw during
-    training with unconditional_prob > 0 and in the paper's zero-conditioning mode.
-
-    Returns:
-        audio : int16 numpy (num_stems, num_samples)
-        mels : float tensor (num_stems, 1, n_mels, T_mel)
+    Generate n_samples unconditional samples.
 
     Args:
         sampler_type : "ddim", "euler", or "heun".
-        ddim_discretize : DDIM/Euler/Heun timestep spacing, "uniform" or "quad".
-        seed : optional random seed for reproducible initial noise.
-        x_T : optional fixed initial latent noise, shape (B, S, C, T, F).
+        ddim_discretize : timestep spacing, "uniform" or "quad".
+        seed : optional starting seed. Sample k uses seed = seed + k for reproducible noise.
+
+    Returns List of n_samples (audio, mels):
+        audio : int16 numpy (num_stems, num_samples)
+        mels : float tensor (num_stems, 1, n_mels, T_mel)
+    If leave_as_latent is True, returns List of n_samples tensors
+        (num_stems, z_channels, latent_t_size, latent_f_size)
+    If out_dir is given, each sample is saved to out_dir/sample_NNNN/.
     """
-    dm = sampler.get_diffusion_model()
-    dm.eval()
-    cond = dm.cond_stage_model.get_unconditional_condition(1) # zeros (1, S, C, T, F)
-    samples = _run_sampler(
-        sampler,
-        cond,
-        sampler_type=sampler_type,
-        ddim_steps=ddim_steps,
-        ddim_discretize=ddim_discretize,
-        ddim_eta=ddim_eta,
-        cfg_scale=1.0,
-        seed=seed,
-        x_T=x_T,
-    )
-    audio, mels = _decode_samples(samples, dm, vae, vocoder)
-    return audio[0], mels[0]
+    resolved = _resolve_devices(devices)
+    primary = resolved[0]
+    primary_dm = sampler.get_diffusion_model().to(primary).eval()
+    vae.to(primary).eval()
+    vocoder.to(primary).eval()
+
+    allot = _allot(n_samples, min(len(resolved), n_samples))
+    n_workers = max(wi for wi, _ in allot) + 1
+    w_samplers = [sampler] + [_build_worker_sampler(sampler, resolved[i]) for i in range(1, n_workers)]
+
+    shape = (primary_dm.num_stems, primary_dm.z_channels, primary_dm.latent_t_size, primary_dm.latent_f_size)
+
+    jobs = []
+    sample_idx = 0
+    for wi, bs in allot:
+        with torch.no_grad():
+            cond = w_samplers[wi].get_diffusion_model().cond_stage_model.get_unconditional_condition(bs)
+        start_seed = (seed + sample_idx) if seed is not None else None
+        x_T = _make_x_T(start_seed, bs, shape, resolved[wi])
+        kwargs = dict(
+            sampler_type=sampler_type,
+            steps=ddim_steps,
+            ddim_discretize=ddim_discretize,
+            eta=ddim_eta,
+            cfg=1.0,
+            x_T=x_T,
+        )
+        jobs.append((wi, w_samplers[wi], cond, bs, kwargs))
+        sample_idx += bs
+
+    try:
+        results = _dispatch(jobs, primary_dm, vae, vocoder, primary, leave_as_latent=leave_as_latent)
+    finally:
+        del jobs
+        _cleanup_workers(w_samplers)
+
+    if out_dir is not None and not leave_as_latent:
+        root = Path(out_dir)
+        for i, (audio, mels) in enumerate(results):
+            _save_stems(root / f"sample_{(i + start_from):04d}", audio, mels, vocoder.sample_rate)
+
+    return results
 
 
-@torch.no_grad()
 def separate_mixture(
     mixture_audio,
     sr,
@@ -140,6 +248,7 @@ def separate_mixture(
     vocoder,
     mel_extractor,
     *,
+    devices=None,
     sampler_type="ddim",
     ddim_steps=200,
     ddim_discretize="uniform",
@@ -147,54 +256,111 @@ def separate_mixture(
     cfg_scale=3.0,
     target_length=1024,
     seed=None,
-    x_T=None,
-):
+    leave_as_latent=False,
+    out_dir: Optional[str] = None,
+    start_from: Optional[int] = 0,
+) -> List[Tuple]:
     """
-    Separate a mixture audio clip into individual stems using MSG-LD.
-
-    1. Encode mixture via VAE -> replicate latent across stems as conditioning.
-    2. Reverse-diffuse from Gaussian noise guided by that mixture latent.
-    3. Decode each stem latent via VAE + HiFiGAN.
+    mixture_audio: float/int16 numpy (num_samples,) or List of such arrays.
 
     Args:
-        mixture_audio : 1-D float32 numpy array in [-1, 1], any length
-        sr : sample rate
-        sampler_type : "ddim", "euler", or "heun"
-        ddim_discretize : DDIM/Euler/Heun timestep spacing, "uniform" or "quad"
-        cfg_scale : guidance strength; 1 = none, 3-5 = recommended for separation
-        target_length : mel frames to use — must match latent_t_size * VAE time stride (= 1024 for default config at 16 kHz, hop=160)
-        seed : optional random seed for reproducible initial noise.
-        x_T : optional fixed initial latent noise, shape (B, S, C, T, F).
+        sampler_type : "ddim", "euler", or "heun".
+        ddim_discretize : timestep spacing, "uniform" or "quad".
+        cfg_scale : guidance strength; 1 = none, 3-5 = recommended for separation.
+        target_length : mel frames. Default 1024 = latent_t_size * VAE stride at 16 kHz hop=160.
+        seed : optional starting seed; sample k uses seed = seed + k.
 
-    Returns:
-        audio : int16 numpy   (num_stems, num_samples)
-        mels  : float tensor  (num_stems, 1, n_mels, T_mel)
+    Returns List of n_samples (audio, mels):
+        audio : int16 numpy  (num_stems, num_samples)
+        mels  : float tensor (num_stems, 1, n_mels, T_mel)
+    If leave_as_latent is True, returns List of n_samples tensors
+        (num_stems, z_channels, latent_t_size, latent_f_size)
+    If out_dir is given, each result is saved to out_dir/sample_NNNN/.
     """
-    dm = sampler.get_diffusion_model()
-    dm.eval()
+    resolved = _resolve_devices(devices)
+    primary = resolved[0]
+    primary_dm = sampler.get_diffusion_model().to(primary).eval()
+    vae.to(primary).eval()
+    vocoder.to(primary).eval()
 
-    # 1. Build conditioning from mixture
-    mel = mel_extractor.audio_to_mel(mixture_audio, sr) # (1, n_mels, T)
-    T = mel.shape[-1]
-    if T < target_length:
-        mel = torch.nn.functional.pad(mel, (0, target_length - T))
-    elif T > target_length:
-        mel = mel[..., :target_length]
+    mixtures = mixture_audio if isinstance(mixture_audio, list) else [mixture_audio]
+    n_samples = len(mixtures)
 
-    cond = dm.get_conditioning({"fbank": mel.unsqueeze(0)})
+    def _mel(mix):
+        m = mel_extractor.audio_to_mel(mix, sr)  # (1, n_mels, T)
+        T = m.shape[-1]
+        if T < target_length: m = torch.nn.functional.pad(m, (0, target_length - T))
+        else: m = m[..., :target_length]
+        return m
 
-    # 2. Reverse diffusion
-    samples = _run_sampler(
-        sampler, cond,
-        sampler_type=sampler_type,
-        ddim_steps=ddim_steps,
-        ddim_discretize=ddim_discretize,
-        ddim_eta=ddim_eta,
-        cfg_scale=cfg_scale,
-        seed=seed,
-        x_T=x_T,
-    )
+    cond_cache = {}
+    with torch.no_grad():
+        for mix in mixtures:
+            if id(mix) not in cond_cache:
+                mel = _mel(mix).to(primary)
+                cond_cache[id(mix)] = primary_dm.get_conditioning({"fbank": mel.unsqueeze(0)})  # (1, S, C, T, F)
 
-    # 3. Decode
-    audio, mels = _decode_samples(samples, dm, vae, vocoder)
-    return audio[0], mels[0]
+    allot = _allot(n_samples, min(len(resolved), n_samples))
+    n_workers = max(wi for wi, _ in allot) + 1
+    w_samplers = [sampler] + [_build_worker_sampler(sampler, resolved[i]) for i in range(1, n_workers)]
+
+    shape = (primary_dm.num_stems, primary_dm.z_channels, primary_dm.latent_t_size, primary_dm.latent_f_size)
+
+    jobs, cursor = [], 0
+    for wi, bs in allot:
+        batch_conds = [cond_cache[id(m)] for m in mixtures[cursor: cursor + bs]]
+        cond = torch.cat(batch_conds, dim=0).to(resolved[wi])  # (bs, S, C, T, F)
+        start_seed = (seed + cursor) if seed is not None else None
+        x_T = _make_x_T(start_seed, bs, shape, resolved[wi])
+        kwargs = dict(
+            sampler_type=sampler_type,
+            steps=ddim_steps,
+            ddim_discretize=ddim_discretize,
+            eta=ddim_eta,
+            cfg=cfg_scale,
+            x_T=x_T,
+        )
+        jobs.append((wi, w_samplers[wi], cond, bs, kwargs))
+        cursor += bs
+
+    try:
+        results = _dispatch(jobs, primary_dm, vae, vocoder, primary, leave_as_latent=leave_as_latent)
+    finally:
+        del jobs
+        cond_cache.clear()
+        del cond_cache
+        _cleanup_workers(w_samplers)
+
+    if out_dir is not None and not leave_as_latent:
+        root = Path(out_dir)
+        for i, (audio, mels) in enumerate(results):
+            _save_stems(root / f"sample_{(i + start_from):04d}", audio, mels, vocoder.sample_rate)
+
+    return results
+
+
+def change_max_batches(start_new_max, new_max):
+    global INITIAL_MAX_BATCH_SIZE, MAX_BATCH_SIZE
+    INITIAL_MAX_BATCH_SIZE = start_new_max
+    MAX_BATCH_SIZE = new_max
+
+
+def load_saved_stems(path: str):
+    """Load generated stems from a previous run, given the path to the sample directory."""
+    path = Path(path)
+
+    mels_path = path / "mels.npz"
+    if not mels_path.exists():
+        raise FileNotFoundError(f"Expected mels.npz file not found: {mels_path}")
+    mels_data = np.load(mels_path)
+    mels = mels_data["mels"] # (num_stems, 1, n_mels, T_mel)
+
+    res = {}
+    for i, name in enumerate(STEM_NAMES):
+        wav_path = path / f"{name}.wav"
+        if not wav_path.exists():
+            raise FileNotFoundError(f"Expected WAV file not found: {wav_path}")
+        stem_audio, sr = sf.read(wav_path, dtype="int16")
+        res[name] = (stem_audio, mels[i], sr)
+
+    return res
