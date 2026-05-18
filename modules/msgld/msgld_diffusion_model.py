@@ -119,6 +119,11 @@ class MsgLdDiffusionModel(DiffusionModel):
         latent_f_size: int = 16,
         device: str = "cpu",
     ):
+        if parameterization not in {"eps", "x0", "v"}:
+            raise ValueError(
+                f"Unknown parameterization={parameterization}. Expected 'eps', 'x0', or 'v'."
+            )
+
         self.vae = vae
         self.mel_extractor = mel_extractor
         self.num_stems = num_stems

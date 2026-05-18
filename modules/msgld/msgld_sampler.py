@@ -8,7 +8,7 @@ from modules.abstractions.sampler import Sampler
 
 class MsgLdHeunSampler(Sampler):
     """
-    Deterministic Heun sampler for MSG-LD eps/x0 diffusion models.
+    Deterministic Heun sampler for MSG-LD eps/x0/v diffusion models.
 
     The sampler integrates in sigma-space using the same discrete training
     timesteps selected by the DDIM discretization helper.
@@ -136,6 +136,8 @@ class MsgLdHeunSampler(Sampler):
             return (x_t - sqrt_one_minus_alpha * model_output) / sqrt_alpha
         if self.dm.parameterization == "x0":
             return model_output
+        if self.dm.parameterization == "v":
+            return sqrt_alpha * x_t - sqrt_one_minus_alpha * model_output
         raise NotImplementedError(f"{self.name} sampler does not support parameterization={self.dm.parameterization}")
 
     def _apply_model_cfg(
