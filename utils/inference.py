@@ -65,6 +65,13 @@ def _run_sampler(
     eta=1.0,
     cfg=1.0,
     x_T=None,
+    sigma_min=None,
+    sigma_max=None,
+    rho=7.0,
+    s_churn=0.0,
+    s_min=0.0,
+    s_max=float("inf"),
+    s_noise=1.0,
 ):
     """
     Core diffusion sampling.
@@ -73,6 +80,7 @@ def _run_sampler(
         "ddim" uses the original DDIM update.
         "euler" deterministic first-order ODE.
         "heun" deterministic second-order Heun.
+        "edm" EDM rho-spaced sigmas with a Heun update.
 
     ddim_discretize:
         "uniform" evenly spaced training timesteps.
@@ -82,7 +90,7 @@ def _run_sampler(
     """
     dm = sampler.get_diffusion_model()
     shape = (dm.num_stems, dm.z_channels, dm.latent_t_size, dm.latent_f_size)
-    return sampler.sample(
+    sample_kwargs = dict(
         steps=steps,
         batch_size=bs,
         shape=shape,
@@ -94,6 +102,17 @@ def _run_sampler(
         cfg_scale=cfg,
         x_T=x_T,
     )
+    if sampler_type.lower() == "edm":
+        sample_kwargs.update(
+            sigma_min=sigma_min,
+            sigma_max=sigma_max,
+            rho=rho,
+            s_churn=s_churn,
+            s_min=s_min,
+            s_max=s_max,
+            s_noise=s_noise,
+        )
+    return sampler.sample(**sample_kwargs)
 
 
 def _decode(samples, dm, vae, vocoder):
@@ -176,6 +195,13 @@ def generate_stems(
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0,
+    edm_sigma_min=None,
+    edm_sigma_max=None,
+    edm_rho=7.0,
+    edm_s_churn=0.0,
+    edm_s_min=0.0,
+    edm_s_max=float("inf"),
+    edm_s_noise=1.0,
     seed=None,
     leave_as_latent=False,
     out_dir: Optional[str] = None,
@@ -185,7 +211,7 @@ def generate_stems(
     Generate n_samples unconditional samples.
 
     Args:
-        sampler_type : "ddim", "euler", or "heun".
+        sampler_type : "ddim", "euler", "heun", or "edm".
         ddim_discretize : timestep spacing, "uniform" or "quad".
         seed : optional starting seed. Sample k uses seed = seed + k for reproducible noise.
 
@@ -222,6 +248,13 @@ def generate_stems(
             eta=ddim_eta,
             cfg=1.0,
             x_T=x_T,
+            sigma_min=edm_sigma_min,
+            sigma_max=edm_sigma_max,
+            rho=edm_rho,
+            s_churn=edm_s_churn,
+            s_min=edm_s_min,
+            s_max=edm_s_max,
+            s_noise=edm_s_noise,
         )
         jobs.append((wi, w_samplers[wi], cond, bs, kwargs))
         sample_idx += bs
@@ -253,6 +286,13 @@ def separate_mixture(
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0,
+    edm_sigma_min=None,
+    edm_sigma_max=None,
+    edm_rho=7.0,
+    edm_s_churn=0.0,
+    edm_s_min=0.0,
+    edm_s_max=float("inf"),
+    edm_s_noise=1.0,
     cfg_scale=3.0,
     target_length=1024,
     seed=None,
@@ -264,7 +304,7 @@ def separate_mixture(
     mixture_audio: float/int16 numpy (num_samples,) or List of such arrays.
 
     Args:
-        sampler_type : "ddim", "euler", or "heun".
+        sampler_type : "ddim", "euler", "heun", or "edm".
         ddim_discretize : timestep spacing, "uniform" or "quad".
         cfg_scale : guidance strength; 1 = none, 3-5 = recommended for separation.
         target_length : mel frames. Default 1024 = latent_t_size * VAE stride at 16 kHz hop=160.
@@ -319,6 +359,13 @@ def separate_mixture(
             eta=ddim_eta,
             cfg=cfg_scale,
             x_T=x_T,
+            sigma_min=edm_sigma_min,
+            sigma_max=edm_sigma_max,
+            rho=edm_rho,
+            s_churn=edm_s_churn,
+            s_min=edm_s_min,
+            s_max=edm_s_max,
+            s_noise=edm_s_noise,
         )
         jobs.append((wi, w_samplers[wi], cond, bs, kwargs))
         cursor += bs
