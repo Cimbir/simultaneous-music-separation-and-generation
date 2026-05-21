@@ -58,13 +58,7 @@ def _run_sampler(
     s_noise=1.0,
 ):
     """
-    Core diffusion sampling. Passes only the kwargs that the sampler's
-    sample() method explicitly declares, so any sampler subclass works
-    without needing a sampler_type string.
-
-    ddim_discretize:
-        "uniform" evenly spaced training timesteps.
-        "quad" quadratic spacing.
+    Core diffusion sampling
 
     Returns: samples (bs, num_stems, z_channels, T, F) in scaled latent space.
     """
@@ -105,14 +99,24 @@ def _decode(samples, dm, vae, vocoder):
 
 
 def _allot(n_samples, n_workers):
-    base, extra = divmod(n_samples, n_workers)
     jobs = []
-    for wi in range(n_workers):
-        count = base + (1 if wi < extra else 0)
-        bs = INITIAL_MAX_BATCH_SIZE if wi == 0 else MAX_BATCH_SIZE
-        for s in range(0, count, bs):
-            jobs.append((wi, min(bs, count - s)))
-    return jobs # [(worker_idx, batch_size)]
+    if INITIAL_MAX_BATCH_SIZE == 0:
+        n_active = n_workers - 1
+        if n_active == 0:
+            raise RuntimeError("INITIAL_MAX_BATCH_SIZE=0 requires at least 2 GPUs.")
+        base, extra = divmod(n_samples, n_active)
+        for idx, wi in enumerate(range(1, n_workers)):
+            count = base + (1 if idx < extra else 0)
+            for s in range(0, count, MAX_BATCH_SIZE):
+                jobs.append((wi, min(MAX_BATCH_SIZE, count - s)))
+    else:
+        base, extra = divmod(n_samples, n_workers)
+        for wi in range(n_workers):
+            count = base + (1 if wi < extra else 0)
+            bs = INITIAL_MAX_BATCH_SIZE if wi == 0 else MAX_BATCH_SIZE
+            for s in range(0, count, bs):
+                jobs.append((wi, min(bs, count - s)))
+    return jobs  # [(worker_idx, batch_size)]
 
 
 def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev, leave_as_latent):
@@ -140,7 +144,7 @@ def _dispatch(jobs, primary_dm, vae, vocoder, primary_dev, leave_as_latent):
             errors.append(e)
 
     if len(groups) == 1:
-        run(groups[0])
+        run(next(iter(groups.values())))
     else:
         ts = [threading.Thread(target=run, args=(groups[wi],), daemon=True) for wi in groups]
         for t in ts: t.start()
