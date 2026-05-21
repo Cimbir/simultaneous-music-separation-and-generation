@@ -1,4 +1,5 @@
 import gc
+import inspect
 import numpy as np, soundfile as sf
 import threading, torch
 from collections import defaultdict
@@ -40,33 +41,16 @@ def _cleanup_workers(w_samplers: list) -> None:
     torch.cuda.empty_cache()
 
 
-def _make_x_T(start_seed, bs, shape, device):
-    """Build initial noise. start_seed is the seed for the first sample in the batch;
-    each sample in the batch gets seed+k so identical batch elements are avoided."""
-    if start_seed is None:
-        return None
-    pieces = []
-    for k in range(bs):
-        g = torch.Generator()
-        g.manual_seed(start_seed + k)
-        pieces.append(torch.randn((1, *shape), generator=g))
-    return torch.cat(pieces, dim=0).to(device)
-
-
 @torch.no_grad()
 def _run_sampler(
     sampler,
     cond,
     *,
     bs,
-    sampler_type="ddim",
     steps=200,
     ddim_discretize="uniform",
     eta=1.0,
     cfg=1.0,
-    x_T=None,
-    sigma_min=None,
-    sigma_max=None,
     rho=7.0,
     s_churn=0.0,
     s_min=0.0,
@@ -74,13 +58,9 @@ def _run_sampler(
     s_noise=1.0,
 ):
     """
-    Core diffusion sampling.
-
-    sampler_type:
-        "ddim" uses the original DDIM update.
-        "euler" deterministic first-order ODE.
-        "heun" deterministic second-order Heun.
-        "edm" EDM rho-spaced sigmas with a Heun update.
+    Core diffusion sampling. Passes only the kwargs that the sampler's
+    sample() method explicitly declares, so any sampler subclass works
+    without needing a sampler_type string.
 
     ddim_discretize:
         "uniform" evenly spaced training timesteps.
@@ -90,29 +70,29 @@ def _run_sampler(
     """
     dm = sampler.get_diffusion_model()
     shape = (dm.num_stems, dm.z_channels, dm.latent_t_size, dm.latent_f_size)
-    sample_kwargs = dict(
-        steps=steps,
-        batch_size=bs,
+
+    all_kwargs = dict(
         shape=shape,
         conditioning=cond,
+        steps=steps,
+        batch_size=bs,
         eta=eta,
-        ddim_discretize=ddim_discretize,
-        sampler_type=sampler_type,
         verbose=False,
         cfg_scale=cfg,
-        x_T=x_T,
+        ddim_discretize=ddim_discretize,
+        rho=rho,
+        s_churn=s_churn,
+        s_min=s_min,
+        s_max=s_max,
+        s_noise=s_noise,
     )
-    if sampler_type.lower() == "edm":
-        sample_kwargs.update(
-            sigma_min=sigma_min,
-            sigma_max=sigma_max,
-            rho=rho,
-            s_churn=s_churn,
-            s_min=s_min,
-            s_max=s_max,
-            s_noise=s_noise,
-        )
-    return sampler.sample(**sample_kwargs)
+
+    sig = inspect.signature(sampler.sample)
+    named = {
+        name for name, p in sig.parameters.items()
+        if p.kind != inspect.Parameter.VAR_KEYWORD
+    }
+    return sampler.sample(**{k: v for k, v in all_kwargs.items() if k in named})
 
 
 def _decode(samples, dm, vae, vocoder):
@@ -191,18 +171,14 @@ def generate_stems(
     *,
     n_samples=1,
     devices=None,
-    sampler_type="ddim",
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0,
-    edm_sigma_min=None,
-    edm_sigma_max=None,
     edm_rho=7.0,
     edm_s_churn=0.0,
     edm_s_min=0.0,
     edm_s_max=float("inf"),
     edm_s_noise=1.0,
-    seed=None,
     leave_as_latent=False,
     out_dir: Optional[str] = None,
     start_from: Optional[int] = 0,
@@ -211,9 +187,7 @@ def generate_stems(
     Generate n_samples unconditional samples.
 
     Args:
-        sampler_type : "ddim", "euler", "heun", or "edm".
-        ddim_discretize : timestep spacing, "uniform" or "quad".
-        seed : optional starting seed. Sample k uses seed = seed + k for reproducible noise.
+        ddim_discretize : timestep spacing for DDIM/Heun, "uniform" or "quad".
 
     Returns List of n_samples (audio, mels):
         audio : int16 numpy (num_stems, num_samples)
@@ -239,17 +213,11 @@ def generate_stems(
     for wi, bs in allot:
         with torch.no_grad():
             cond = w_samplers[wi].get_diffusion_model().cond_stage_model.get_unconditional_condition(bs)
-        start_seed = (seed + sample_idx) if seed is not None else None
-        x_T = _make_x_T(start_seed, bs, shape, resolved[wi])
         kwargs = dict(
-            sampler_type=sampler_type,
             steps=ddim_steps,
             ddim_discretize=ddim_discretize,
             eta=ddim_eta,
             cfg=1.0,
-            x_T=x_T,
-            sigma_min=edm_sigma_min,
-            sigma_max=edm_sigma_max,
             rho=edm_rho,
             s_churn=edm_s_churn,
             s_min=edm_s_min,
@@ -282,12 +250,9 @@ def separate_mixture(
     mel_extractor,
     *,
     devices=None,
-    sampler_type="ddim",
     ddim_steps=200,
     ddim_discretize="uniform",
     ddim_eta=1.0,
-    edm_sigma_min=None,
-    edm_sigma_max=None,
     edm_rho=7.0,
     edm_s_churn=0.0,
     edm_s_min=0.0,
@@ -295,7 +260,6 @@ def separate_mixture(
     edm_s_noise=1.0,
     cfg_scale=3.0,
     target_length=1024,
-    seed=None,
     leave_as_latent=False,
     out_dir: Optional[str] = None,
     start_from: Optional[int] = 0,
@@ -304,11 +268,9 @@ def separate_mixture(
     mixture_audio: float/int16 numpy (num_samples,) or List of such arrays.
 
     Args:
-        sampler_type : "ddim", "euler", "heun", or "edm".
-        ddim_discretize : timestep spacing, "uniform" or "quad".
+        ddim_discretize : timestep spacing for DDIM/Heun, "uniform" or "quad".
         cfg_scale : guidance strength; 1 = none, 3-5 = recommended for separation.
         target_length : mel frames. Default 1024 = latent_t_size * VAE stride at 16 kHz hop=160.
-        seed : optional starting seed; sample k uses seed = seed + k.
 
     Returns List of n_samples (audio, mels):
         audio : int16 numpy  (num_stems, num_samples)
@@ -350,17 +312,11 @@ def separate_mixture(
     for wi, bs in allot:
         batch_conds = [cond_cache[id(m)] for m in mixtures[cursor: cursor + bs]]
         cond = torch.cat(batch_conds, dim=0).to(resolved[wi])  # (bs, S, C, T, F)
-        start_seed = (seed + cursor) if seed is not None else None
-        x_T = _make_x_T(start_seed, bs, shape, resolved[wi])
         kwargs = dict(
-            sampler_type=sampler_type,
             steps=ddim_steps,
             ddim_discretize=ddim_discretize,
             eta=ddim_eta,
             cfg=cfg_scale,
-            x_T=x_T,
-            sigma_min=edm_sigma_min,
-            sigma_max=edm_sigma_max,
             rho=edm_rho,
             s_churn=edm_s_churn,
             s_min=edm_s_min,
