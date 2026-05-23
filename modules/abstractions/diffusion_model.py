@@ -23,7 +23,7 @@ class DiffusionModel(ABC):
     ) -> torch.Tensor:
         """
         Run the diffusion model on noisy input x_noisy at timestep t with conditioning cond.
-        Returns the model prediction (noise or x0 depending on parameterization).
+        Returns the model prediction (noise, x0, or velocity depending on parameterization).
         """
         ...
 
@@ -130,6 +130,15 @@ class DiffusionModel(ABC):
         return (
             self._extract(sqrt_origin, t, x_0.shape) * x_0
             + self._extract(sqrt_noise, t, x_0.shape) * noise
+        )
+
+    def get_velocity(self, x_0: torch.Tensor, t: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
+        """Velocity target: v = sqrt(alpha) * eps - sqrt(1-alpha) * x_0."""
+        sqrt_origin = self.sqrt_alphas_cumprod.to(x_0.device)
+        sqrt_noise = self.sqrt_one_minus_alphas_cumprod.to(x_0.device)
+        return (
+            self._extract(sqrt_origin, t, x_0.shape) * noise
+            - self._extract(sqrt_noise, t, x_0.shape) * x_0
         )
 
     @staticmethod

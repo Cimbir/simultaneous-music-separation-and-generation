@@ -2,6 +2,7 @@ import torch
 
 from latent_diffusion.models.ddim import DDIMSampler
 from modules.abstractions.sampler import Sampler
+from modules.abstractions.diffusion_model import DiffusionModel
 
 
 class MsgLdSampler(Sampler):
@@ -15,7 +16,7 @@ class MsgLdSampler(Sampler):
                          schedule, apply_model, and cond_stage_model.
     """
 
-    def __init__(self, diffusion_model):
+    def __init__(self, diffusion_model: DiffusionModel):
         self.dm = diffusion_model
         self._ddim = DDIMSampler(diffusion_model)
 

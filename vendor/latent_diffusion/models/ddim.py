@@ -109,6 +109,7 @@ class DDIMSampler(object):
         log_every_t=100,
         unconditional_guidance_scale=1.0,
         unconditional_conditioning=None,
+        ddim_discretize="uniform",
         # this has to come in the same format as the conditioning, # e.g. as encoded tokens, ...
         **kwargs,
     ):
@@ -125,7 +126,12 @@ class DDIMSampler(object):
                         f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}"
                     )
 
-        self.make_schedule(ddim_num_steps=S, ddim_eta=eta, verbose=verbose)
+        self.make_schedule(
+            ddim_num_steps=S,
+            ddim_discretize=ddim_discretize,
+            ddim_eta=eta,
+            verbose=verbose,
+        )
         # sampling
         C, Z_C, H, W = shape
         size = (batch_size, C, Z_C, H, W)
@@ -323,21 +329,25 @@ class DDIMSampler(object):
         b, *_, device = *x.shape, x.device
 
         if unconditional_conditioning is None or unconditional_guidance_scale == 1.0:
-            e_t = self.model.apply_model(x, t, c)
+            model_output = self.model.apply_model(x, t, c)
         else:
             x_in = torch.cat([x] * 2)
             t_in = torch.cat([t] * 2)
             c_in = torch.cat([unconditional_conditioning, c])
-            e_t_uncond, e_t = self.model.apply_model(x_in, t_in, c_in).chunk(2)
+            model_output_uncond, model_output = self.model.apply_model(
+                x_in, t_in, c_in
+            ).chunk(2)
             # When unconditional_guidance_scale == 1: only e_t
             # When unconditional_guidance_scale == 0: only unconditional
             # When unconditional_guidance_scale > 1: add more unconditional guidance
-            e_t = e_t_uncond + unconditional_guidance_scale * (e_t - e_t_uncond)
+            model_output = model_output_uncond + unconditional_guidance_scale * (
+                model_output - model_output_uncond
+            )
 
         if score_corrector is not None:
             assert self.model.parameterization == "eps"
-            e_t = score_corrector.modify_score(
-                self.model, e_t, x, t, c, **corrector_kwargs
+            model_output = score_corrector.modify_score(
+                self.model, model_output, x, t, c, **corrector_kwargs
             )
 
         alphas = self.model.alphas_cumprod if use_original_steps else self.ddim_alphas
@@ -364,8 +374,21 @@ class DDIMSampler(object):
             (b, 1, 1, 1, 1), sqrt_one_minus_alphas[index], device=device
         )
 
-        # current prediction for x_0
-        pred_x0 = (x - sqrt_one_minus_at * e_t) / a_t.sqrt()
+        # current predictions for x_0 and eps, converted from the model parameterization
+        if self.model.parameterization == "eps":
+            e_t = model_output
+            pred_x0 = (x - sqrt_one_minus_at * e_t) / a_t.sqrt()
+        elif self.model.parameterization == "x0":
+            pred_x0 = model_output
+            e_t = (x - a_t.sqrt() * pred_x0) / sqrt_one_minus_at
+        elif self.model.parameterization == "v":
+            pred_x0 = a_t.sqrt() * x - sqrt_one_minus_at * model_output
+            e_t = sqrt_one_minus_at * x + a_t.sqrt() * model_output
+        else:
+            raise NotImplementedError(
+                f"DDIM sampler does not support parameterization={self.model.parameterization}"
+            )
+
         if quantize_denoised:
             pred_x0, _, *_ = self.model.first_stage_model.quantize(pred_x0)
         # direction pointing to x_t

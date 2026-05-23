@@ -82,7 +82,7 @@ class MsgLdDiffusionTrainer(DiffusionTrainer):
         noise = torch.randn_like(z)
         x_noisy = dm.q_sample(z, t, noise=noise)
 
-        # 5. Predict noise
+        # 5. Predict the configured target
         model_output = dm.apply_model(x_noisy, t, c)
 
         # 6. Compute target
@@ -90,6 +90,8 @@ class MsgLdDiffusionTrainer(DiffusionTrainer):
             target = noise
         elif dm.parameterization == "x0":
             target = z
+        elif dm.parameterization == "v":
+            target = dm.get_velocity(z, t, noise)
         else:
             raise NotImplementedError(f"parameterization={dm.parameterization}")
 
