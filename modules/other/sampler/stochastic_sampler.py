@@ -73,6 +73,7 @@ class StochasticSampler(Sampler):
             iterator = tqdm(iterator, desc=f"{self.name} Sampler", total=steps)
 
         for i in iterator:
+            print(f"step {i}")
             sigma_cur = t_steps[i]
             sigma_next = t_steps[i + 1]
             x_cur = x_next
