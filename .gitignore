@@ -1,7 +1,9 @@
 data/
 pretrained/
+models/
 **/__pycache__/
 */__pycache__/
 *.pyc
 **.pyc
 inference/
+.numba_cache/

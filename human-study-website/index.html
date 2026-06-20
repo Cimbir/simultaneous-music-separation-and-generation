@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Music Listening Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand" id="brand">Music Listening Study</div>
+      <div class="progress" id="progress" hidden>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <span class="progress-label" id="progressLabel"></span>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+
+      <!-- WELCOME / CONSENT -->
+      <section class="screen card active" id="screen-welcome">
+        <h1>Music Listening Study</h1>
+        <p class="lead">
+          You will listen to short AI-generated music clips
+          and rank them. It takes about <strong id="estMin">10</strong> minutes.
+        </p>
+        <ul class="checklist">
+          <li>The clips are ~8 seconds of multi-instrument music (bass, drums, guitar, piano).</li>
+          <li>There are no right or wrong answers — judge by ear.</li>
+          <li>Please finish in one sitting and do not refresh the page.</li>
+        </ul>
+        <button class="btn primary" id="startBtn">Begin</button>
+      </section>
+
+      <!-- INSTRUCTIONS -->
+      <section class="screen card" id="screen-instructions">
+        <h2>How it works</h2>
+        <p class="lead">Each round shows you <strong>4 clips</strong>. Listen to all of them, then rank them on two things:</p>
+        <div class="dim-explain">
+          <div class="dim-card">
+            <h3>Musicality</h3>
+            <p>Which sounds most musical — most structured, melodic, and rhythmically coherent?</p>
+          </div>
+          <div class="dim-card">
+            <h3>Instrument coherence</h3>
+            <p>How well do the instruments fit together, as if playing the same song?</p>
+          </div>
+        </div>
+        <ul class="checklist">
+          <li>Play each clip — replay as many times as you like.</li>
+          <li>Drag the cards (or use the ▲ ▼ buttons) to order them from <strong>best (top)</strong> to <strong>worst (bottom)</strong>.</li>
+          <li>You must play every clip before you can continue.</li>
+        </ul>
+        <p class="lead">The study has <strong id="realCount">7</strong> short rounds. Take your time and judge by ear.</p>
+        <button class="btn primary" id="toStudyBtn">Start the study</button>
+      </section>
+
+      <!-- TRIAL -->
+      <section class="screen" id="screen-trial">
+        <div class="card trial-card">
+          <div class="trial-head">
+            <span class="badge" id="trialBadge">Round</span>
+            <h2 id="trialTitle">Listen to all four clips</h2>
+          </div>
+
+          <div class="players" id="players"><!-- player rows injected --></div>
+
+          <div class="rankings">
+            <div class="ranking-block">
+              <h3>1 · Musicality</h3>
+              <p class="rank-hint">Most musical at the top, least at the bottom.</p>
+              <ul class="ranklist" id="rank-musicality"></ul>
+            </div>
+            <div class="ranking-block">
+              <h3>2 · Instrument coherence</h3>
+              <p class="rank-hint">Best fit at the top, worst at the bottom.</p>
+              <ul class="ranklist" id="rank-coherence"></ul>
+            </div>
+          </div>
+
+          <div class="trial-foot">
+            <p class="warn" id="trialWarn"></p>
+            <button class="btn primary" id="nextTrialBtn">Continue</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- THANK YOU -->
+      <section class="screen card" id="screen-done">
+        <h2>All done — thank you! 🎧</h2>
+        <p class="lead">Your responses have been recorded. You can close this tab.</p>
+        <p class="fineprint" id="doneNote"></p>
+      </section>
+
+      <!-- ERROR -->
+      <section class="screen card" id="screen-error">
+        <h2>Something went wrong</h2>
+        <p class="lead" id="errorMsg">We couldn't load the study.</p>
+        <button class="btn" id="retryBtn">Retry</button>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
