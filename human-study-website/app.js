@@ -37,17 +37,20 @@
         apikey: CFG.SUPABASE_ANON_KEY,
         Authorization: `Bearer ${CFG.SUPABASE_ANON_KEY}`,
         "Content-Type": "application/json",
-        Prefer: "return=representation",
+        Prefer: "return=minimal",
         ...(opts.headers || {}),
       },
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
-    return res.status === 204 ? null : res.json();
+    if (res.status === 204 || res.status === 201) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
   }
 
   async function claimSession() {
     const rows = await sb("rpc/claim_session", {
       method: "POST",
+      headers: { Prefer: "return=representation" },
       body: JSON.stringify({
         p_num_sessions: state.sessionsMeta.num_sessions,
         p_user_agent: navigator.userAgent.slice(0, 300),
