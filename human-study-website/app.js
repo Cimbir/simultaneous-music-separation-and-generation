@@ -11,7 +11,6 @@
     trialIndex: 0,
     current: null,
     backendOk: false,
-    localLog: [],
   };
 
   const $ = (id) => document.getElementById(id);
@@ -60,49 +59,24 @@
   }
 
   async function saveTrial(payload) {
-    if (state.backendOk) {
-      try {
-        await sb("responses", { method: "POST", body: JSON.stringify(payload) });
-        return;
-      } catch (e) {
-        console.error(e);
-        state.backendOk = false;
-      }
+    if (!state.backendOk) return;
+    try {
+      await sb("responses", { method: "POST", body: JSON.stringify(payload) });
+    } catch (e) {
+      console.error(e);
     }
-    state.localLog.push(payload);
   }
 
   async function markFinished() {
-    if (state.backendOk) {
-      try {
-        await sb(`participants?id=eq.${state.participantId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ finished_at: new Date().toISOString() }),
-        });
-        return;
-      } catch (e) {
-        console.error(e);
-        state.backendOk = false;
-      }
+    if (!state.backendOk) return;
+    try {
+      await sb(`participants?id=eq.${state.participantId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ finished_at: new Date().toISOString() }),
+      });
+    } catch (e) {
+      console.error(e);
     }
-    downloadLocal();
-  }
-
-  function downloadLocal() {
-    const blob = new Blob(
-      [JSON.stringify({
-        session_index: state.sessionIndex,
-        finished_at: new Date().toISOString(),
-        responses: state.localLog,
-      }, null, 2)],
-      { type: "application/json" }
-    );
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `study_session_${state.sessionIndex ?? "x"}_${Date.now()}.json`;
-    a.click();
-    $("doneNote").textContent =
-      "A results file was downloaded — please send it to the researcher.";
   }
 
   function updateProgress() {
