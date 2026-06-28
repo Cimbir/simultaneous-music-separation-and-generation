@@ -1,0 +1,15 @@
+:root {
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-2: #1f232c;
+  --border: #2a2f3a;
+  --text: #e7e9ee;
+  --muted: #9aa3b2;
+  --accent: #6c8cff;
+  --accent-2: #8a7bff;
+  --good: #41d6a3;
+  --warn: #ffb454;
+  --radius: 14px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --gradient: linear-gradient(90deg, var(--accent), var(--accent-2));
+}

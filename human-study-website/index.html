@@ -7,7 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/trial.css" />
 </head>
 <body>
   <div class="app">
@@ -21,7 +24,6 @@
 
     <main class="stage" id="stage">
 
-      <!-- WELCOME / CONSENT -->
       <section class="screen card active" id="screen-welcome">
         <h1>Music Listening Study</h1>
         <p class="lead">
@@ -36,7 +38,6 @@
         <button class="btn primary" id="startBtn">Begin</button>
       </section>
 
-      <!-- INSTRUCTIONS -->
       <section class="screen card" id="screen-instructions">
         <h2>How it works</h2>
         <p class="lead">Each round shows you <strong>4 clips</strong>. Listen to all of them, then rank them on two things:</p>
@@ -51,23 +52,22 @@
           </div>
         </div>
         <ul class="checklist">
-          <li>Play each clip — replay as many times as you like.</li>
+          <li>Play each clip — you can replay each up to <strong id="playsInfo">3</strong> times.</li>
           <li>Drag the cards (or use the ▲ ▼ buttons) to order them from <strong>best (top)</strong> to <strong>worst (bottom)</strong>.</li>
           <li>You must play every clip before you can continue.</li>
         </ul>
-        <p class="lead">The study has <strong id="realCount">7</strong> short rounds. Take your time and judge by ear.</p>
-        <button class="btn primary" id="toStudyBtn">Start the study</button>
+        <p class="lead">Let's do one practice round first — it does not count.</p>
+        <button class="btn primary" id="toPracticeBtn">Start practice</button>
       </section>
 
-      <!-- TRIAL -->
       <section class="screen" id="screen-trial">
         <div class="card trial-card">
           <div class="trial-head">
-            <span class="badge" id="trialBadge">Round</span>
+            <span class="badge" id="trialBadge">Practice</span>
             <h2 id="trialTitle">Listen to all four clips</h2>
           </div>
 
-          <div class="players" id="players"><!-- player rows injected --></div>
+          <div class="players" id="players"></div>
 
           <div class="rankings">
             <div class="ranking-block">
@@ -89,13 +89,17 @@
         </div>
       </section>
 
-      <!-- THANK YOU -->
+      <section class="screen card" id="screen-practice-done">
+        <h2>Nice — that's the idea</h2>
+        <p class="lead">The study has <strong id="realCount">7</strong> short rounds. Take your time and judge by ear.</p>
+        <button class="btn primary" id="toStudyBtn">Start the study</button>
+      </section>
+
       <section class="screen card" id="screen-done">
         <h2>All done — thank you! 🎧</h2>
         <p class="lead">Your responses have been recorded. You can close this tab.</p>
       </section>
 
-      <!-- ERROR -->
       <section class="screen card" id="screen-error">
         <h2>Something went wrong</h2>
         <p class="lead" id="errorMsg">We couldn't load the study.</p>
@@ -106,6 +110,6 @@
   </div>
 
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
