@@ -25,7 +25,8 @@
 
 .rankings { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 8px; }
 .ranking-block h3 { font-size: 15px; }
-.rank-hint { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.rank-hint { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
+.rank-anchor { font-size: 12px; font-weight: 600; color: var(--text); opacity: .85; line-height: 1.5; margin: 0 0 12px; }
 .ranklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .rankitem {
   display: flex; align-items: center; gap: 10px;

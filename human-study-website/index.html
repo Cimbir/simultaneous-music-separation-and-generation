@@ -32,7 +32,7 @@
         </p>
         <ul class="checklist">
           <li>The clips are ~8 seconds of multi-instrument music (bass, drums, guitar, piano).</li>
-          <li>There are no right or wrong answers — judge by ear.</li>
+          <li>There are no right or wrong answers, just judge by ear.</li>
           <li>Please finish in one sitting and do not refresh the page.</li>
         </ul>
         <button class="btn primary" id="startBtn">Begin</button>
@@ -44,7 +44,7 @@
         <div class="dim-explain">
           <div class="dim-card">
             <h3>Musicality</h3>
-            <p>Which sounds most musical — most structured, melodic, and rhythmically coherent?</p>
+            <p>Is this actually music? Does each part (bass, drums, guitar, piano) sound like a real instrument playing a real melody, groove, or rhythm, rather than random or meaningless notes?</p>
           </div>
           <div class="dim-card">
             <h3>Instrument coherence</h3>
@@ -52,11 +52,11 @@
           </div>
         </div>
         <ul class="checklist">
-          <li>Play each clip — you can replay each up to <strong id="playsInfo">3</strong> times.</li>
+          <li>Play each clip, and replay it up to <strong id="playsInfo">3</strong> times.</li>
           <li>Drag the cards (or use the ▲ ▼ buttons) to order them from <strong>best (top)</strong> to <strong>worst (bottom)</strong>.</li>
           <li>You must play every clip before you can continue.</li>
         </ul>
-        <p class="lead">Let's do one practice round first — it does not count.</p>
+        <p class="lead">Let's do one practice round first. It does not count.</p>
         <button class="btn primary" id="toPracticeBtn">Start practice</button>
       </section>
 
@@ -72,12 +72,14 @@
           <div class="rankings">
             <div class="ranking-block">
               <h3>1 · Musicality</h3>
-              <p class="rank-hint">Most musical at the top, least at the bottom.</p>
+              <p class="rank-hint">Is this actually music? Does each part (bass, drums, guitar, piano) sound like a real instrument playing a real melody, groove, or rhythm, rather than random or meaningless notes?</p>
+              <p class="rank-anchor">Drag the most musical clip to position 1 (top), down to the least musical at the bottom.</p>
               <ul class="ranklist" id="rank-musicality"></ul>
             </div>
             <div class="ranking-block">
               <h3>2 · Instrument coherence</h3>
-              <p class="rank-hint">Best fit at the top, worst at the bottom.</p>
+              <p class="rank-hint">How well do the instruments fit together, as if they are playing the same song?</p>
+              <p class="rank-anchor">Listen to the clips again before ranking this one. Drag the best fit to position 1 (top), down to the worst at the bottom.</p>
               <ul class="ranklist" id="rank-coherence"></ul>
             </div>
           </div>
@@ -90,13 +92,13 @@
       </section>
 
       <section class="screen card" id="screen-practice-done">
-        <h2>Nice — that's the idea</h2>
+        <h2>Nice, that's the idea</h2>
         <p class="lead">The study has <strong id="realCount">7</strong> short rounds. Take your time and judge by ear.</p>
         <button class="btn primary" id="toStudyBtn">Start the study</button>
       </section>
 
       <section class="screen card" id="screen-done">
-        <h2>All done — thank you! 🎧</h2>
+        <h2>All done. Thank you! 🎧</h2>
         <p class="lead">Your responses have been recorded. You can close this tab.</p>
       </section>
 

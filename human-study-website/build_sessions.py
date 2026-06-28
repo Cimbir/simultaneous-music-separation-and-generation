@@ -12,6 +12,8 @@ TARGET_PARTICIPANTS = 20
 NUM_SESSIONS = 40
 REAL_TRIALS = 6
 CATCH_TRIALS = 1
+REPEAT_TRIALS = 1
+REPEAT_MIN_GAP = 3
 PLAYS_PER_CLIP = 3
 SEED = 42
 
@@ -56,15 +58,27 @@ def discover_pool():
 def pick_least_seen(candidates, counts, exclude):
     eligible = [c for c in candidates if c["clip_id"] not in exclude]
     if not eligible:
-        raise RuntimeError("No eligible clip left — increase clips per model.")
+        raise RuntimeError("No eligible clip left, increase clips per model.")
     lowest = min(counts[c["clip_id"]] for c in eligible)
     return random.choice([c for c in eligible if counts[c["clip_id"]] == lowest])
+
+
+def reshuffled(clips):
+    original = [c["clip_id"] for c in clips]
+    shuffled = [dict(c) for c in clips]
+    for _ in range(10):
+        random.shuffle(shuffled)
+        if [c["clip_id"] for c in shuffled] != original:
+            break
+    return shuffled
 
 
 def ratings_after(sessions, k):
     counts = defaultdict(int)
     for session in sessions[:k]:
         for trial in session["trials"]:
+            if trial.get("is_repeat"):
+                continue
             for clip in trial["clips"]:
                 if clip["model"] != "GROUND_TRUTH":
                     counts[clip["clip_id"]] += 1
@@ -90,7 +104,7 @@ def build():
                 used.add(clip["clip_id"])
                 trial_clips.append(dict(clip))
             random.shuffle(trial_clips)
-            real_trials.append({"is_catch": False, "clips": trial_clips})
+            real_trials.append({"is_catch": False, "is_repeat": False, "clips": trial_clips})
 
         dropped_model = random.choice(MODELS)
         catch_clips = []
@@ -105,12 +119,21 @@ def build():
         gt_counts[gt_clip["clip_id"]] += 1
         catch_clips.append(dict(gt_clip))
         random.shuffle(catch_clips)
-        catch_trial = {"is_catch": True, "clips": catch_clips}
+        catch_trial = {"is_catch": True, "is_repeat": False, "clips": catch_clips}
 
         trials = real_trials[:]
+
+        repeat_source = random.choice(real_trials[:REAL_TRIALS - REPEAT_MIN_GAP])
+        repeat_trial = {"is_catch": False, "is_repeat": True,
+                        "clips": reshuffled(repeat_source["clips"])}
+        source_index = trials.index(repeat_source)
+        trials.insert(random.randint(source_index + REPEAT_MIN_GAP, len(trials)), repeat_trial)
+
         trials.insert(random.randint(0, len(trials)), catch_trial)
+
         for number, trial in enumerate(trials, start=1):
             trial["trial_number"] = number
+        repeat_trial["repeat_of"] = repeat_source["trial_number"]
 
         sessions.append({"session_index": participant, "trials": trials})
 
@@ -122,6 +145,8 @@ def build():
         "target_participants": TARGET_PARTICIPANTS,
         "real_trials": REAL_TRIALS,
         "catch_trials": CATCH_TRIALS,
+        "repeat_trials": REPEAT_TRIALS,
+        "trials_per_session": REAL_TRIALS + CATCH_TRIALS + REPEAT_TRIALS,
         "plays_per_clip": PLAYS_PER_CLIP,
         "models": MODELS,
         "seed": SEED,
@@ -132,6 +157,8 @@ def build():
     prefix_counts = ratings_after(sessions, TARGET_PARTICIPANTS)
     print(f"Wrote {len(sessions)} sessions to data/sessions.json "
           f"(headroom for {NUM_SESSIONS} participants, goal {TARGET_PARTICIPANTS})")
+    print(f"Trials per session: {REAL_TRIALS + CATCH_TRIALS + REPEAT_TRIALS} "
+          f"({REAL_TRIALS} real, {CATCH_TRIALS} catch, {REPEAT_TRIALS} repeat)")
     print("Clips per model: " + ", ".join(f"{m}={len(pool[m])}" for m in MODELS)
           + f", GT={len(ground_truth)}")
     if prefix_counts:
@@ -139,7 +166,7 @@ def build():
         print(f"Ratings per clip at {TARGET_PARTICIPANTS} participants: "
               f"min={min(prefix_counts)} max={max(prefix_counts)} target~={target:.1f}")
     if used_fallback:
-        print("\n[!] Some audio folders were empty — used placeholder clip names. "
+        print("\n[!] Some audio folders were empty, used placeholder clip names. "
               "Drop real clips into audio/<MODEL>/ and audio/ground_truth/, then re-run.")
 
 
