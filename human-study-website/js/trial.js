@@ -1,7 +1,7 @@
 import { createPlayerDeck } from "./player-deck.js";
 import { createRankingList } from "./ranking-list.js";
 
-const CLIP_LABELS = ["A", "B", "C", "D"];
+const CLIP_LABELS = ["A", "B", "C", "D", "E"];
 
 export function createTrial(refs, clips, { maxPlays, onReadyChange }) {
   const startedAt = new Date().toISOString();

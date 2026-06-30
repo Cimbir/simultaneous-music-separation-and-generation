@@ -116,7 +116,7 @@ function runTrial(clips, { practice }) {
   });
 
   setText("trialBadge", practice ? "Practice" : `Round ${study.trialIndex + 1}`);
-  setText("trialTitle", "Listen to all four clips, then rank them");
+  setText("trialTitle", "Listen to all five clips, then rank them");
   byId("nextTrialBtn").textContent = continueLabel(practice);
 
   setContinueEnabled(false);

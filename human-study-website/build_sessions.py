@@ -4,7 +4,7 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
-MODELS = ["MSDM", "MSLDM", "MSG-LD", "MGE-LDM"]
+MODELS = ["MSDM", "MSLDM", "MSG-LD", "MSG-LD-ext", "MGE-LDM"]
 GROUND_TRUTH_DIR = "ground_truth"
 AUDIO_EXTS = (".mp3", ".wav", ".ogg", ".m4a", ".flac")
 
