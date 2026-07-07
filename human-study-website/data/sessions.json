@@ -5,7 +5,7 @@
   "catch_trials": 1,
   "repeat_trials": 1,
   "trials_per_session": 8,
-  "plays_per_clip": 3,
+  "plays_per_clip": 5,
   "models": [
     "MSDM",
     "MSLDM",

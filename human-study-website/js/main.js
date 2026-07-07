@@ -45,7 +45,7 @@ const study = {
   participantId: null,
   sessionIndex: null,
   backendReady: false,
-  maxPlays: 3,
+  maxPlays: 5,
   trialIndex: 0,
   practiceMode: false,
   trial: null,
@@ -64,7 +64,7 @@ async function init() {
     return showError("Could not load study data. Make sure data/sessions.json exists (run build_sessions.py).");
   }
 
-  study.maxPlays = study.meta.plays_per_clip || 3;
+  study.maxPlays = study.meta.plays_per_clip || 5;
   setText("playsInfo", study.maxPlays);
   setText("realCount", study.meta.sessions[0]?.trials.length || 7);
 
