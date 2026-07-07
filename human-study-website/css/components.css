@@ -1,0 +1,54 @@
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 20px 2px 26px;
+}
+.brand { font-weight: 700; letter-spacing: -0.01em; opacity: .9; }
+.progress { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+.progress-bar { flex: 1; height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; width: 0%; background: var(--gradient); transition: width .4s ease; }
+.progress-label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  box-shadow: var(--shadow);
+}
+
+.btn {
+  appearance: none; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font: inherit; font-weight: 600; padding: 13px 22px;
+  border-radius: 10px; cursor: pointer;
+  transition: transform .06s ease, filter .2s ease, opacity .2s;
+}
+.btn:hover { filter: brightness(1.1); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--gradient); border-color: transparent; color: #fff; }
+.btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+
+.checklist { list-style: none; padding: 0; margin: 0 0 22px; }
+.checklist li {
+  position: relative; padding: 8px 0 8px 28px;
+  line-height: 1.5; opacity: .9; border-bottom: 1px solid var(--border);
+}
+.checklist li:last-child { border-bottom: 0; }
+.checklist li::before {
+  content: "✓"; position: absolute; left: 0; top: 8px;
+  color: var(--good); font-weight: 700;
+}
+
+.badge {
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--accent); background: rgba(108, 140, 255, .12);
+  border: 1px solid rgba(108, 140, 255, .3); padding: 4px 10px; border-radius: 99px;
+}
+
+.dim-explain { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 4px 0 22px; }
+.dim-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.dim-card p { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0; }
+
+@media (max-width: 640px) {
+  .card { padding: 22px; }
+  .dim-explain { grid-template-columns: 1fr; }
+}

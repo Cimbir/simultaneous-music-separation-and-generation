@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Music Listening Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/trial.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand" id="brand">Music Listening Study</div>
+      <div class="progress" id="progress" hidden>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <span class="progress-label" id="progressLabel"></span>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+
+      <section class="screen card active" id="screen-welcome">
+        <h1>Music Listening Study</h1>
+        <p class="lead">
+          You will listen to short AI-generated music clips
+          and rank them. It takes about <strong id="estMin">10</strong> minutes.
+        </p>
+        <ul class="checklist">
+          <li>The clips are ~8 seconds of multi-instrument music (bass, drums, guitar, piano).</li>
+          <li>There are no right or wrong answers, just judge by ear.</li>
+          <li>Please finish in one sitting and do not refresh the page.</li>
+        </ul>
+        <button class="btn primary" id="startBtn">Begin</button>
+      </section>
+
+      <section class="screen card" id="screen-instructions">
+        <h2>How it works</h2>
+        <p class="lead">Each round shows you <strong>5 clips</strong>. Listen to all of them, then rank them on two things:</p>
+        <div class="dim-explain">
+          <div class="dim-card">
+            <h3>Musicality</h3>
+            <p>Is this actually music? Does each part (bass, drums, guitar, piano) sound like a real instrument playing a real melody, groove, or rhythm, rather than random or meaningless notes?</p>
+          </div>
+          <div class="dim-card">
+            <h3>Instrument coherence</h3>
+            <p>How well do the instruments fit together, as if playing the same song?</p>
+          </div>
+        </div>
+        <ul class="checklist">
+          <li>Play each clip, and replay it up to <strong id="playsInfo">3</strong> times.</li>
+          <li>Drag the cards (or use the ▲ ▼ buttons) to order them from <strong>best (top)</strong> to <strong>worst (bottom)</strong>.</li>
+          <li>You must play every clip before you can continue.</li>
+        </ul>
+        <p class="lead">Let's do one practice round first. It does not count.</p>
+        <button class="btn primary" id="toPracticeBtn">Start practice</button>
+      </section>
+
+      <section class="screen" id="screen-trial">
+        <div class="card trial-card">
+          <div class="trial-head">
+            <span class="badge" id="trialBadge">Practice</span>
+            <h2 id="trialTitle">Listen to all five clips</h2>
+          </div>
+
+          <div class="players" id="players"></div>
+
+          <div class="rankings">
+            <div class="ranking-block">
+              <h3>1 · Musicality</h3>
+              <p class="rank-hint">Is this actually music? Does each part (bass, drums, guitar, piano) sound like a real instrument playing a real melody, groove, or rhythm, rather than random or meaningless notes?</p>
+              <p class="rank-anchor">Drag the most musical clip to position 1 (top), down to the least musical at the bottom.</p>
+              <ul class="ranklist" id="rank-musicality"></ul>
+            </div>
+            <div class="ranking-block">
+              <h3>2 · Instrument coherence</h3>
+              <p class="rank-hint">How well do the instruments fit together, as if they are playing the same song?</p>
+              <p class="rank-anchor">Listen to the clips again before ranking this one. Drag the best fit to position 1 (top), down to the worst at the bottom.</p>
+              <ul class="ranklist" id="rank-coherence"></ul>
+            </div>
+          </div>
+
+          <div class="trial-foot">
+            <p class="warn" id="trialWarn"></p>
+            <button class="btn primary" id="nextTrialBtn">Continue</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen card" id="screen-practice-done">
+        <h2>Nice, that's the idea</h2>
+        <p class="lead">The study has <strong id="realCount">7</strong> short rounds. Take your time and judge by ear.</p>
+        <button class="btn primary" id="toStudyBtn">Start the study</button>
+      </section>
+
+      <section class="screen card" id="screen-done">
+        <h2>All done. Thank you! 🎧</h2>
+        <p class="lead">Your responses have been recorded. You can close this tab.</p>
+      </section>
+
+      <section class="screen card" id="screen-error">
+        <h2>Something went wrong</h2>
+        <p class="lead" id="errorMsg">We couldn't load the study.</p>
+        <button class="btn" id="retryBtn">Retry</button>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="config.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
