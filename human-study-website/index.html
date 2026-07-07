@@ -28,7 +28,7 @@
         <h1>Music Listening Study</h1>
         <p class="lead">
           You will listen to short AI-generated music clips
-          and rank them. It takes about <strong id="estMin">10</strong> minutes.
+          and rank them by two separate criteria. It takes about <strong id="estMin">10</strong> minutes.
         </p>
         <ul class="checklist">
           <li>The clips are ~8 seconds of multi-instrument music (bass, drums, guitar, piano).</li>
@@ -40,24 +40,40 @@
 
       <section class="screen card" id="screen-instructions">
         <h2>How it works</h2>
-        <p class="lead">Each round shows you <strong>5 clips</strong>. Listen to all of them, then rank them on two things:</p>
+        <p class="lead">Each round shows you <strong>5 clips</strong>. Listen to all of them, then rank them twice:</p>
         <div class="dim-explain">
           <div class="dim-card">
-            <h3>Musicality</h3>
-            <p>Is this actually music? Does each part (bass, drums, guitar, piano) sound like a real instrument playing a real melody, groove, or rhythm, rather than random or meaningless notes?</p>
+            <h3>Instrument realism</h3>
+            <p>Judge the sound of each part by itself. Does the bass, drums, guitar, or piano sound like a believable instrument performance instead of glitchy, noisy, or random audio?</p>
           </div>
           <div class="dim-card">
             <h3>Instrument coherence</h3>
-            <p>How well do the instruments fit together, as if playing the same song?</p>
+            <p>Judge how well the parts fit together. Do the instruments feel like they share the same song, tempo, key, groove, and phrase?</p>
           </div>
         </div>
         <ul class="checklist">
           <li>Play each clip, and replay it up to <strong id="playsInfo">3</strong> times.</li>
           <li>Drag the cards (or use the ▲ ▼ buttons) to order them from <strong>best (top)</strong> to <strong>worst (bottom)</strong>.</li>
-          <li>You must play every clip before you can continue.</li>
+          <li>A clip can be good on one criterion and bad on the other. Rank each criterion independently.</li>
         </ul>
-        <p class="lead">Let's do one practice round first. It does not count.</p>
-        <button class="btn primary" id="toPracticeBtn">Start practice</button>
+        <button class="btn primary" id="toCalibrationBtn">Hear examples</button>
+      </section>
+
+      <section class="screen card" id="screen-calibration">
+        <h2>Listen to the difference</h2>
+        <p class="lead">These three examples show that realism and coherence are different. Play all three before the practice round.</p>
+
+        <div class="calibration-grid" id="calibrationExamples"></div>
+
+        <ul class="checklist criteria-checklist">
+          <li>For <strong>instrument realism</strong>, focus on whether the individual sounds are believable instrument performances.</li>
+          <li>For <strong>instrument coherence</strong>, focus on whether the instruments belong together in the same song.</li>
+          <li>Do not average the two answers. The same clip may deserve different rankings for realism and coherence.</li>
+        </ul>
+        <div class="screen-actions">
+          <p class="warn" id="calibrationWarn">Play all three examples before practice.</p>
+          <button class="btn primary" id="toPracticeBtn" disabled>Start practice</button>
+        </div>
       </section>
 
       <section class="screen" id="screen-trial">
@@ -71,15 +87,15 @@
 
           <div class="rankings">
             <div class="ranking-block">
-              <h3>1 · Musicality</h3>
-              <p class="rank-hint">Is this actually music? Does each part (bass, drums, guitar, piano) sound like a real instrument playing a real melody, groove, or rhythm, rather than random or meaningless notes?</p>
-              <p class="rank-anchor">Drag the most musical clip to position 1 (top), down to the least musical at the bottom.</p>
+              <h3>1 · Instrument realism</h3>
+              <p class="rank-hint">How believable do the individual instrument sounds feel? Ignore whether the instruments fit together for this ranking.</p>
+              <p class="rank-anchor">Drag the most realistic-sounding clip to position 1 (top), down to the least realistic at the bottom.</p>
               <ul class="ranklist" id="rank-musicality"></ul>
             </div>
             <div class="ranking-block">
               <h3>2 · Instrument coherence</h3>
-              <p class="rank-hint">How well do the instruments fit together, as if they are playing the same song?</p>
-              <p class="rank-anchor">Listen to the clips again before ranking this one. Drag the best fit to position 1 (top), down to the worst at the bottom.</p>
+              <p class="rank-hint">How well do the instruments fit together as one song? Ignore sound-quality artifacts for this ranking.</p>
+              <p class="rank-anchor">Listen again before ranking this one. Drag the most coherent clip to position 1 (top), down to the least coherent at the bottom.</p>
               <ul class="ranklist" id="rank-coherence"></ul>
             </div>
           </div>
@@ -93,7 +109,7 @@
 
       <section class="screen card" id="screen-practice-done">
         <h2>Nice, that's the idea</h2>
-        <p class="lead">The study has <strong id="realCount">7</strong> short rounds. Take your time and judge by ear.</p>
+        <p class="lead">The study has <strong id="realCount">7</strong> short rounds. Take your time and keep the two criteria separate.</p>
         <button class="btn primary" id="toStudyBtn">Start the study</button>
       </section>
 

@@ -1,15 +1,21 @@
-const ICON = { play: "▶", pause: "⏸" };
+import { setPauseIcon, setPlayIcon } from "./icons.js";
 
 export function createPlayerDeck(container, clips, { maxPlays, labelFor, onChange }) {
   container.innerHTML = "";
   const playCounts = new Map(clips.map((clip) => [clip.clip_id, 0]));
   let activeAudio = null;
+  let activeUi = null;
 
   function stopActive() {
     if (!activeAudio) return;
     activeAudio.pause();
     activeAudio.currentTime = 0;
+    if (activeUi) {
+      setPlayIcon(activeUi.button, activeUi.button.dataset.playLabel);
+      activeUi.progressFill.style.width = "0%";
+    }
     activeAudio = null;
+    activeUi = null;
   }
 
   for (const clip of clips) {
@@ -23,8 +29,12 @@ export function createPlayerDeck(container, clips, { maxPlays, labelFor, onChang
       }
     });
     audio.addEventListener("ended", () => {
-      ui.button.textContent = ICON.play;
+      setPlayIcon(ui.button, ui.button.dataset.playLabel);
       ui.progressFill.style.width = "0%";
+      if (activeAudio === audio) {
+        activeAudio = null;
+        activeUi = null;
+      }
     });
 
     ui.button.addEventListener("click", () => onPlayToggle(clip, audio, ui));
@@ -34,7 +44,11 @@ export function createPlayerDeck(container, clips, { maxPlays, labelFor, onChang
   function onPlayToggle(clip, audio, ui) {
     if (!audio.paused) {
       audio.pause();
-      ui.button.textContent = ICON.play;
+      setPlayIcon(ui.button, ui.button.dataset.playLabel);
+      if (activeAudio === audio) {
+        activeAudio = null;
+        activeUi = null;
+      }
       return;
     }
     const used = playCounts.get(clip.clip_id);
@@ -45,7 +59,8 @@ export function createPlayerDeck(container, clips, { maxPlays, labelFor, onChang
     audio.currentTime = 0;
     audio.play();
     activeAudio = audio;
-    ui.button.textContent = ICON.pause;
+    activeUi = ui;
+    setPauseIcon(ui.button, ui.button.dataset.pauseLabel);
     ui.row.classList.add("played");
 
     const left = maxPlays - playCounts.get(clip.clip_id);
@@ -65,15 +80,20 @@ function renderRow(label, maxPlays) {
   const row = document.createElement("div");
   row.className = "player";
   row.innerHTML = `
-    <button class="play" aria-label="Play clip ${label}">${ICON.play}</button>
+    <button class="play"></button>
     <div class="label">${label}</div>
     <div class="meta">
       <div class="wave"><i></i></div>
       <div class="plays">Plays left: ${maxPlays}</div>
     </div>`;
+  const button = row.querySelector(".play");
+  button.dataset.playLabel = `Play clip ${label}`;
+  button.dataset.pauseLabel = `Pause clip ${label}`;
+  setPlayIcon(button, button.dataset.playLabel);
+
   return {
     row,
-    button: row.querySelector(".play"),
+    button,
     progressFill: row.querySelector(".wave > i"),
     playsLabel: row.querySelector(".plays"),
   };
