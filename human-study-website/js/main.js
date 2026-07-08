@@ -45,7 +45,7 @@ const study = {
   participantId: null,
   sessionIndex: null,
   backendReady: false,
-  maxPlays: 3,
+  maxPlays: 5,
   trialIndex: 0,
   practiceMode: false,
   trial: null,
