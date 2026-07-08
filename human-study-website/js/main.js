@@ -12,7 +12,7 @@ const CALIBRATION_CLIPS = [
     title: "Good realism + good coherence",
     src: "audio/instructions/gt_reference.mp3",
     description:
-      "A real ground-truth mix. The instruments sound believable and they fit together as one song.",
+      "A real ground-truth mix. The whole track sounds recorded and the instruments fit together as one song.",
   },
   {
     id: "bad-realism-good-coherence",
@@ -20,7 +20,7 @@ const CALIBRATION_CLIPS = [
     title: "Bad realism + good coherence",
     src: "audio/instructions/bad_realism_good_coherence.mp3",
     description:
-      "The song structure still fits together, but the instrument sounds are damaged and synthetic.",
+      "The arrangement still works as a group, but the audio sounds damaged and computer-generated.",
   },
   {
     id: "good-realism-bad-coherence",
@@ -28,7 +28,7 @@ const CALIBRATION_CLIPS = [
     title: "Good realism + bad coherence",
     src: "audio/instructions/good_realism_bad_coherence.mp3",
     description:
-      "The layers come from real ground-truth material, but they do not share one song, groove, or phrase.",
+      "The layers sound like recorded material, but they clash and do not feel like the same track.",
   },
 ];
 
@@ -64,7 +64,7 @@ async function init() {
     return showError("Could not load study data. Make sure data/sessions.json exists (run build_sessions.py).");
   }
 
-  study.maxPlays = study.meta.plays_per_clip || 3;
+  study.maxPlays = study.meta.plays_per_clip || 5;
   setText("playsInfo", study.maxPlays);
   setText("realCount", study.meta.sessions[0]?.trials.length || 7);
 
