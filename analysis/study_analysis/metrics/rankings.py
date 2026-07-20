@@ -11,7 +11,7 @@ def mean_rank_table(real_trials: pd.DataFrame, config: Config) -> pd.DataFrame:
     records = []
     for axis in AXES:
         matrix = rank_matrix(real_trials, axis)
-        for offset, model in enumerate(MODELS):
+        for offset, model in enumerate(matrix.columns):
             ranks = matrix[model].to_numpy()
             point, lo, hi = bootstrap_ci(ranks, n_boot=config.n_bootstrap, seed=config.seed + offset)
             records.append({"axis": axis, "model": model, "mean_rank": point,
@@ -21,8 +21,9 @@ def mean_rank_table(real_trials: pd.DataFrame, config: Config) -> pd.DataFrame:
 
 def win_rate_table(real_trials: pd.DataFrame) -> pd.DataFrame:
     records = []
+    present = [m for m in MODELS if m in set(real_trials["model"])]
     for axis, column in AXES.items():
-        for model in MODELS:
+        for model in present:
             ranks = real_trials.loc[real_trials["model"] == model, column].dropna()
             if ranks.empty:
                 continue

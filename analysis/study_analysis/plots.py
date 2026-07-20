@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from study_analysis.config import GRID_COLOR, INK_PRIMARY, INK_SECONDARY, MODEL_COLORS, MODELS
+from study_analysis.config import GRID_COLOR, INK_PRIMARY, INK_SECONDARY, MODEL_COLORS
 from study_analysis.metrics.common import AXES
 
 _AXIS_TITLE = {"realism": "Realism", "coherence": "Instrument coherence"}
@@ -71,7 +71,7 @@ def plot_mean_ranks(mean_rank_table: pd.DataFrame, out_dir: Path) -> Path:
         ax.set_yticks(y, best_last["model"])
         ax.set_title(_AXIS_TITLE[axis_name])
         ax.set_xlabel("Mean rank  (1 = best)")
-        ax.set_xlim(0.7, len(MODELS) + 0.3)
+        ax.set_xlim(0.7, len(best_last) + 0.3)
         _grid(ax, "x")
     fig.suptitle("Model preference by axis", fontweight="bold", y=1.02)
     return _save(fig, out_dir, "mean_ranks")
@@ -112,7 +112,7 @@ def _cliques_within_cd(sorted_ranks: np.ndarray, critical_difference: float) -> 
 
 def _draw_cd_axis(ax, mean_ranks: pd.Series, critical_difference: float, title: str) -> None:
     ordered = mean_ranks.sort_values()
-    ax.set_xlim(0.8, len(MODELS) + 0.2)
+    ax.set_xlim(0.8, len(mean_ranks) + 0.2)
     ax.set_ylim(0, 1)
     ax.set_yticks([])
     ax.spines["left"].set_visible(False)
@@ -137,7 +137,7 @@ def plot_realism_vs_coherence(mean_rank_table: pd.DataFrame, out_dir: Path) -> P
     _style()
     wide = mean_rank_table.pivot(index="model", columns="axis", values="mean_rank")
     fig, ax = plt.subplots(figsize=(5.6, 5.4))
-    limit = (0.8, len(MODELS) + 0.2)
+    limit = (0.8, len(wide) + 0.2)
     ax.plot(limit, limit, color=GRID_COLOR, linewidth=1, zorder=1)
     for model, row in wide.iterrows():
         ax.scatter(row["realism"], row["coherence"], color=_color(model), s=110, zorder=3)

@@ -13,7 +13,8 @@ def rank_matrix(real_trials: pd.DataFrame, axis: str) -> pd.DataFrame:
         index=["participant_id", "trial_number"],
         columns="model", values=AXES[axis], aggfunc="first",
     )
-    return wide.reindex(columns=list(MODELS)).dropna(how="any")
+    present = [m for m in MODELS if m in wide.columns]
+    return wide.reindex(columns=present).dropna(how="any")
 
 
 def bootstrap_ci(values, statistic=np.mean, *, n_boot: int, seed: int, alpha: float = 0.05):

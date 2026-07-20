@@ -39,6 +39,14 @@ class StudyData:
         )
 
 
+def drop_model(trials: pd.DataFrame, model: str) -> pd.DataFrame:
+    kept = trials[trials["model"] != model].copy()
+    per_trial = kept.groupby(["participant_id", "trial_number"])
+    for column in ("realism_rank", "coherence_rank"):
+        kept[column] = per_trial[column].rank(method="dense")
+    return kept
+
+
 def build_study_data(
     participants_raw: list[dict[str, Any]],
     responses_raw: list[dict[str, Any]],

@@ -8,11 +8,11 @@ import pandas as pd
 
 from study_analysis import db, plots
 from study_analysis.config import Config
-from study_analysis.loader import StudyData, build_study_data
+from study_analysis.loader import StudyData, build_study_data, drop_model
 from study_analysis.metrics import agreement, behaviour, correlation, difference, rankings
 
 
-def run_analysis(config: Config) -> None:
+def run_analysis(config: Config, exclude: str | None = None) -> None:
     data = _load(config)
     tables_dir = config.out_dir / "tables"
     figures_dir = config.out_dir / "figures"
@@ -22,7 +22,7 @@ def run_analysis(config: Config) -> None:
         print("No responses in the database yet — nothing to analyse.")
         return
 
-    tables = _compute_tables(data, config)
+    tables = _compute_tables(data, config, exclude)
     _write_tables(tables, tables_dir)
     _make_figures(tables, figures_dir)
     _print_headlines(tables)
@@ -37,8 +37,14 @@ def _load(config: Config) -> StudyData:
     return build_study_data(participants, responses, config)
 
 
-def _compute_tables(data: StudyData, config: Config) -> dict[str, pd.DataFrame]:
+def _compute_tables(
+    data: StudyData, config: Config, exclude: str | None = None
+) -> dict[str, pd.DataFrame]:
     scoring_trials = data.clean().real_trials()
+    if exclude:
+        scoring_trials = drop_model(scoring_trials, exclude)
+        print(f"Excluding {exclude}: remaining models re-ranked 1.."
+              f"{scoring_trials['model'].nunique()} within each trial.")
     all_trials = data.long
 
     tables = {
@@ -119,17 +125,19 @@ def _print_headlines(tables: dict[str, pd.DataFrame]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyse the music listening study.")
     parser.add_argument("--out", type=Path, help="output directory")
+    parser.add_argument("--exclude", metavar="MODEL",
+                        help="drop a model and re-rank the rest (e.g. MSDM)")
     parser.add_argument("--metrics-csv", type=Path,
                         help="objective metrics per clip (enables the proxy analysis)")
     args = parser.parse_args()
 
     config = Config.from_env()
-    if args.out:
-        config = dataclasses.replace(config, out_dir=args.out)
+    variant = f"excl_{args.exclude}" if args.exclude else "all_models"
+    config = dataclasses.replace(config, out_dir=(args.out or config.out_dir) / variant)
     if args.metrics_csv:
         config = dataclasses.replace(config, objective_metrics_csv=args.metrics_csv)
 
-    run_analysis(config)
+    run_analysis(config, args.exclude)
 
 
 if __name__ == "__main__":
