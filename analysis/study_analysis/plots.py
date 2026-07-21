@@ -13,8 +13,8 @@ import pandas as pd
 from study_analysis.config import GRID_COLOR, INK_PRIMARY, INK_SECONDARY, MODEL_COLORS
 from study_analysis.metrics.common import AXES
 
-_AXIS_TITLE = {"realism": "Realism", "coherence": "Instrument coherence"}
-_REALISM_COLOR = "#2a78d6"
+_AXIS_TITLE = {"musicality": "Musicality", "coherence": "Instrument coherence"}
+_MUSICALITY_COLOR = "#2a78d6"
 _COHERENCE_COLOR = "#eb6834"
 
 
@@ -140,14 +140,14 @@ def plot_realism_vs_coherence(mean_rank_table: pd.DataFrame, out_dir: Path) -> P
     limit = (0.8, len(wide) + 0.2)
     ax.plot(limit, limit, color=GRID_COLOR, linewidth=1, zorder=1)
     for model, row in wide.iterrows():
-        ax.scatter(row["realism"], row["coherence"], color=_color(model), s=110, zorder=3)
-        ax.annotate(model, (row["realism"], row["coherence"]), textcoords="offset points",
+        ax.scatter(row["musicality"], row["coherence"], color=_color(model), s=110, zorder=3)
+        ax.annotate(model, (row["musicality"], row["coherence"]), textcoords="offset points",
                     xytext=(8, 4), fontsize=9)
     ax.set_xlim(*limit)
     ax.set_ylim(*limit)
-    ax.set_xlabel("Mean realism rank  (1 = best)")
+    ax.set_xlabel("Mean musicality rank  (1 = best)")
     ax.set_ylabel("Mean coherence rank  (1 = best)")
-    ax.set_title("Realism vs coherence per model", fontweight="bold")
+    ax.set_title("Musicality vs coherence per model", fontweight="bold")
     _grid(ax, "x")
     _grid(ax, "y")
     return _save(fig, out_dir, "realism_vs_coherence")
@@ -157,7 +157,7 @@ def plot_kendall_w(kendall_w_table: pd.DataFrame, out_dir: Path) -> Path:
     _style()
     fig, ax = plt.subplots(figsize=(4.8, 3.8))
     bars = ax.bar([_AXIS_TITLE[a] for a in kendall_w_table["axis"]],
-                  kendall_w_table["kendall_w"], color=_REALISM_COLOR, width=0.55)
+                  kendall_w_table["kendall_w"], color=_MUSICALITY_COLOR, width=0.55)
     _bar_labels(ax, bars, kendall_w_table["kendall_w"])
     ax.set_ylim(0, 1)
     ax.set_ylabel("Kendall's W  (0 = none, 1 = full)")
@@ -170,7 +170,7 @@ def plot_reliability(distribution: pd.DataFrame, out_dir: Path) -> Path:
     _style()
     fig, ax = plt.subplots(figsize=(6.2, 3.8))
     bins = np.linspace(-1, 1, 17)
-    for axis_name, color in (("realism", _REALISM_COLOR), ("coherence", _COHERENCE_COLOR)):
+    for axis_name, color in (("musicality", _MUSICALITY_COLOR), ("coherence", _COHERENCE_COLOR)):
         ax.hist(distribution.loc[distribution["axis"] == axis_name, "spearman"],
                 bins=bins, alpha=0.6, color=color, label=_AXIS_TITLE[axis_name])
     ax.axvline(0, color=INK_SECONDARY, linewidth=1, linestyle="--")
@@ -205,7 +205,7 @@ def plot_axis_tau(per_trial_tau: pd.DataFrame, out_dir: Path) -> Path:
     ax.hist(per_trial_tau["tau"], bins=np.linspace(-1, 1, 17), color="#4a3aa7", alpha=0.8)
     mean_tau = per_trial_tau["tau"].mean()
     ax.axvline(mean_tau, color=INK_PRIMARY, linewidth=1.5, label=f"mean = {mean_tau:.2f}")
-    ax.set_xlabel("Kendall tau (realism vs coherence, per trial)")
+    ax.set_xlabel("Kendall tau (musicality vs coherence, per trial)")
     ax.set_ylabel("Trials")
     ax.set_title("Are the two axes the same judgement?", fontweight="bold", fontsize=10)
     ax.legend(frameon=False)
@@ -219,14 +219,14 @@ def plot_metric_proxy(proxy_table: pd.DataFrame, out_dir: Path) -> Path:
     x = np.arange(len(metrics))
     fig, ax = plt.subplots(figsize=(max(6, 1.3 * len(metrics)), 4))
     for offset, (axis_name, color) in enumerate(
-        (("realism", _REALISM_COLOR), ("coherence", _COHERENCE_COLOR))
+        (("musicality", _MUSICALITY_COLOR), ("coherence", _COHERENCE_COLOR))
     ):
         panel = proxy_table[proxy_table["axis"] == axis_name].set_index("metric")
-        heights = [panel.loc[m, "abs_tau"] if m in panel.index else 0 for m in metrics]
+        heights = [panel.loc[m, "abs_rho"] if m in panel.index else 0 for m in metrics]
         ax.bar(x + (offset - 0.5) * 0.4, heights, width=0.4, color=color,
                label=_AXIS_TITLE[axis_name])
     ax.set_xticks(x, metrics, rotation=20, ha="right")
-    ax.set_ylabel("|Kendall tau| vs human rank")
+    ax.set_ylabel("|Spearman rho| vs human rank")
     ax.set_title("Which metric tracks human taste?", fontweight="bold")
     ax.legend(frameon=False)
     _grid(ax)
@@ -250,7 +250,7 @@ def plot_duration_by_trial(duration_table: pd.DataFrame, out_dir: Path) -> Path:
     _style()
     fig, ax = plt.subplots(figsize=(6.2, 3.8))
     ax.plot(duration_table["trial_number"], duration_table["median_duration_s"],
-            color=_REALISM_COLOR, linewidth=2, marker="o", markersize=6)
+            color=_MUSICALITY_COLOR, linewidth=2, marker="o", markersize=6)
     ax.set_xlabel("Trial number")
     ax.set_ylabel("Median duration (s)")
     ax.set_title("Time per trial over the session", fontweight="bold")

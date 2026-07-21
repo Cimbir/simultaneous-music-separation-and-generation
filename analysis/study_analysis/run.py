@@ -9,7 +9,7 @@ import pandas as pd
 from study_analysis import db, plots
 from study_analysis.config import Config
 from study_analysis.loader import StudyData, build_study_data, drop_model
-from study_analysis.metrics import agreement, behaviour, correlation, difference, rankings
+from study_analysis.metrics import agreement, behaviour, bradley_terry, correlation, difference, rankings
 
 
 def run_analysis(config: Config, exclude: str | None = None) -> None:
@@ -48,8 +48,12 @@ def _compute_tables(
     all_trials = data.long
 
     tables = {
+        "kendall_w": agreement.kendalls_w(scoring_trials),
         "mean_rank": rankings.mean_rank_table(scoring_trials, config),
+        "clip_rating_summary": rankings.clip_rating_summary(scoring_trials),
         "win_rate": rankings.win_rate_table(scoring_trials),
+        "pairwise_preferences": bradley_terry.pairwise_preferences(scoring_trials),
+        "bradley_terry": bradley_terry.bradley_terry_scores(scoring_trials, config),
         "friedman": difference.friedman(scoring_trials),
         "nemenyi": difference.nemenyi(scoring_trials),
         "pairwise_wilcoxon": difference.pairwise_wilcoxon(scoring_trials),
@@ -57,7 +61,6 @@ def _compute_tables(
         "realism_vs_coherence": correlation.realism_vs_coherence(scoring_trials, config),
         "per_trial_tau": correlation.per_trial_taus(scoring_trials),
         "clip_mean_ranks": correlation.clip_mean_ranks(scoring_trials),
-        "kendall_w": agreement.kendalls_w(scoring_trials),
         "reliability": agreement.intra_rater_reliability(all_trials, config),
         "reliability_distribution": agreement.reliability_distribution(all_trials),
         "ground_truth_anchoring": agreement.ground_truth_anchoring(all_trials),
@@ -66,9 +69,32 @@ def _compute_tables(
         "duration_by_trial": behaviour.duration_by_trial(all_trials),
     }
 
-    proxy = correlation.metric_human_correlation(scoring_trials, config.objective_metrics_csv)
-    if proxy is not None:
-        tables["metric_proxy"] = proxy
+    clip_metrics = correlation.clip_metric_scores(config.objective_metrics_csv)
+    if clip_metrics is not None:
+        tables["objective_clip_metrics"] = clip_metrics
+
+    model_metrics = correlation.model_metric_table(config.objective_model_metrics)
+    if model_metrics is not None:
+        tables["objective_model_metrics"] = model_metrics
+
+    clip_spearman = correlation.clip_metric_spearman(
+        scoring_trials, config.objective_metrics_csv, config
+    )
+    if clip_spearman is not None:
+        tables["clip_metric_spearman"] = clip_spearman
+
+    model_scores = correlation.model_metric_scores(
+        config.objective_metrics_csv, config.objective_model_metrics
+    )
+    if model_scores is not None:
+        tables["model_metric_scores"] = model_scores
+
+    model_alignment = correlation.model_metric_alignment(
+        tables["bradley_terry"], config.objective_metrics_csv,
+        config.objective_model_metrics, config
+    )
+    if model_alignment is not None:
+        tables["model_metric_alignment"] = model_alignment
     return tables
 
 
@@ -88,8 +114,8 @@ def _make_figures(tables: dict[str, pd.DataFrame], figures_dir: Path) -> None:
     plots.plot_axis_tau(tables["per_trial_tau"], figures_dir)
     plots.plot_replays_by_model(tables["replays_by_model"], figures_dir)
     plots.plot_duration_by_trial(tables["duration_by_trial"], figures_dir)
-    if "metric_proxy" in tables:
-        plots.plot_metric_proxy(tables["metric_proxy"], figures_dir)
+    if "clip_metric_spearman" in tables and not tables["clip_metric_spearman"].empty:
+        plots.plot_metric_proxy(tables["clip_metric_spearman"], figures_dir)
 
 
 def _report_quality(data: StudyData) -> None:
@@ -110,6 +136,9 @@ def _report_quality(data: StudyData) -> None:
 
 def _print_headlines(tables: dict[str, pd.DataFrame]) -> None:
     print("\n--- Headline results ---")
+    for _, row in tables["kendall_w"].iterrows():
+        print(f"Kendall W [{row['axis']}]: W={row['kendall_w']:.3f} "
+              f"({row['agreement']} agreement).")
     for _, row in tables["friedman"].iterrows():
         print(f"Friedman [{row['axis']}]: chi2={row['friedman_chi2']:.1f}, "
               f"p={row['p_value']:.2e} over {row['n_blocks']} trials.")
@@ -128,7 +157,11 @@ def main() -> None:
     parser.add_argument("--exclude", metavar="MODEL",
                         help="drop a model and re-rank the rest (e.g. MSDM)")
     parser.add_argument("--metrics-csv", type=Path,
-                        help="objective metrics per clip (enables the proxy analysis)")
+                        help="objective metrics per clip")
+    parser.add_argument("--model-metrics", type=Path,
+                        help="objective metrics per model, csv or markdown table")
+    parser.add_argument("--bootstrap", type=int,
+                        help="number of bootstrap resamples")
     args = parser.parse_args()
 
     config = Config.from_env()
@@ -136,6 +169,10 @@ def main() -> None:
     config = dataclasses.replace(config, out_dir=(args.out or config.out_dir) / variant)
     if args.metrics_csv:
         config = dataclasses.replace(config, objective_metrics_csv=args.metrics_csv)
+    if args.model_metrics:
+        config = dataclasses.replace(config, objective_model_metrics=args.model_metrics)
+    if args.bootstrap:
+        config = dataclasses.replace(config, n_bootstrap=args.bootstrap)
 
     run_analysis(config, args.exclude)
 

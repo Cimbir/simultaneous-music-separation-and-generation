@@ -5,7 +5,7 @@ import pandas as pd
 
 from study_analysis.config import MODELS
 
-AXES: dict[str, str] = {"realism": "realism_rank", "coherence": "coherence_rank"}
+AXES: dict[str, str] = {"musicality": "realism_rank", "coherence": "coherence_rank"}
 
 
 def rank_matrix(real_trials: pd.DataFrame, axis: str) -> pd.DataFrame:
@@ -19,6 +19,8 @@ def rank_matrix(real_trials: pd.DataFrame, axis: str) -> pd.DataFrame:
 
 def bootstrap_ci(values, statistic=np.mean, *, n_boot: int, seed: int, alpha: float = 0.05):
     values = np.asarray(values, dtype=float)
+    if values.size == 0:
+        return float("nan"), float("nan"), float("nan")
     point = float(statistic(values))
     if values.size < 2:
         return point, float("nan"), float("nan")

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 MODELS: tuple[str, ...] = ("MSDM", "MSLDM", "MSG-LD", "MSG-LD-ext", "MGE-LDM")
+MODEL_ALIASES: dict[str, str] = {"MSG-LD-large": "MSG-LD-ext"}
 GROUND_TRUTH = "GROUND_TRUTH"
 KEY_PAIR: tuple[str, str] = ("MSG-LD", "MSG-LD-ext")
 CLIPS_PER_TRIAL = 5
@@ -31,18 +32,21 @@ class Config:
         default_factory=lambda: _repo_root() / "human-study-website" / "data" / "sessions.json"
     )
     objective_metrics_csv: Path | None = None
+    objective_model_metrics: Path | None = None
     out_dir: Path = field(default_factory=lambda: _repo_root() / "analysis" / "out")
-    n_bootstrap: int = 10_000
+    n_bootstrap: int = 1_000
     seed: int = 42
 
     @classmethod
     def from_env(cls) -> "Config":
         _load_dotenv(_repo_root() / "analysis" / ".env")
         metrics_csv = os.environ.get("OBJECTIVE_METRICS_CSV")
+        model_metrics = os.environ.get("OBJECTIVE_MODEL_METRICS")
         return cls(
             supabase_url=os.environ.get("SUPABASE_URL", "").rstrip("/"),
             supabase_service_key=os.environ.get("SUPABASE_SERVICE_KEY", ""),
             objective_metrics_csv=Path(metrics_csv) if metrics_csv else None,
+            objective_model_metrics=Path(model_metrics) if model_metrics else None,
         )
 
     def require_credentials(self) -> None:

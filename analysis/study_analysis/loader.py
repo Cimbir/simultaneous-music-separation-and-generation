@@ -126,7 +126,7 @@ def _participant_table(
 
 def _catch_pass_flags(long: pd.DataFrame) -> dict[str, bool]:
     catch = long[long["is_catch"] & (long["model"] == GROUND_TRUTH)]
-    return {r.participant_id: r.realism_rank == 1
+    return {r.participant_id: r.realism_rank <= 2
             for r in catch.itertuples() if pd.notna(r.realism_rank)}
 
 

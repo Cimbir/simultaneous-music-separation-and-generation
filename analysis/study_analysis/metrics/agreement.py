@@ -15,10 +15,14 @@ def kendalls_w(real_trials: pd.DataFrame) -> pd.DataFrame:
     for axis in AXES:
         matrix = rank_matrix(real_trials, axis)
         n_judges, n_items = matrix.shape
-        deviation = matrix.sum(axis=0).to_numpy() - n_judges * (n_items + 1) / 2
-        s = float(np.sum(deviation**2))
-        w = 12 * s / (n_judges**2 * (n_items**3 - n_items))
+        if n_judges == 0 or n_items < 2:
+            w = float("nan")
+        else:
+            deviation = matrix.sum(axis=0).to_numpy() - n_judges * (n_items + 1) / 2
+            s = float(np.sum(deviation**2))
+            w = 12 * s / (n_judges**2 * (n_items**3 - n_items))
         records.append({"axis": axis, "kendall_w": w,
+                        "agreement": _agreement_label(w),
                         "n_judges": n_judges, "n_items": n_items})
     return pd.DataFrame(records)
 
@@ -76,3 +80,13 @@ def _repeat_correlations(long: pd.DataFrame, column: str) -> list[float]:
         if not np.isnan(rho):
             correlations.append(float(rho))
     return correlations
+
+
+def _agreement_label(w: float) -> str:
+    if np.isnan(w):
+        return "not_available"
+    if w > 0.7:
+        return "strong"
+    if w >= 0.3:
+        return "moderate"
+    return "weak"

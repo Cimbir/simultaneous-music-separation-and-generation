@@ -32,3 +32,20 @@ def win_rate_table(real_trials: pd.DataFrame) -> pd.DataFrame:
                             "top2_rate": float(np.mean(ranks <= 2)),
                             "n_trials": int(ranks.size)})
     return pd.DataFrame(records)
+
+
+def clip_rating_summary(real_trials: pd.DataFrame) -> pd.DataFrame:
+    records = []
+    for axis, column in AXES.items():
+        counts = (real_trials.groupby(["model", "clip_id"])[column]
+                  .count().reset_index(name="n_ratings"))
+        for model, group in counts.groupby("model"):
+            records.append({
+                "axis": axis,
+                "model": model,
+                "n_clips": int(group.shape[0]),
+                "min_ratings": int(group["n_ratings"].min()),
+                "mean_ratings": float(group["n_ratings"].mean()),
+                "max_ratings": int(group["n_ratings"].max()),
+            })
+    return pd.DataFrame(records)
