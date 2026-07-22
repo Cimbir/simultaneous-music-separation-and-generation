@@ -1,0 +1,7 @@
+# Analysis pipeline dependencies.
+# scipy >= 1.16 is required for scipy.stats.studentized_range (Nemenyi critical difference).
+pandas>=2.0
+numpy>=1.24
+scipy>=1.16
+matplotlib>=3.7
+requests>=2.28
