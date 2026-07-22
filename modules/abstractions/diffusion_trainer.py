@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import pytorch_lightning as pl
 import torch
 from abc import ABC, abstractmethod
-from typing import Tuple, Dict, Optional
 from modules.abstractions.diffusion_model import DiffusionModel
 
 class DiffusionTrainer(pl.LightningModule, ABC):
@@ -14,7 +15,7 @@ class DiffusionTrainer(pl.LightningModule, ABC):
         super().__init__()
         self.learning_rate = learning_rate
         self.warmup_steps = warmup_steps
-        self._initial_lr: Optional[float] = None
+        self._initial_lr: float | None = None
 
     # Abstract interface
 
@@ -24,7 +25,7 @@ class DiffusionTrainer(pl.LightningModule, ABC):
         ...
 
     @abstractmethod
-    def compute_loss(self, batch: dict) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    def compute_loss(self, batch: dict) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Given a data batch, compute (scalar_loss, {metric_name: value})."""
         ...
 

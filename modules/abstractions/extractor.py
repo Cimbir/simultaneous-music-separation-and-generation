@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import numpy as np
 import torch
 from abc import ABC, abstractmethod
 
 class MelExtractor(ABC):
-    """Interface for audio → mel-spectrogram conversion."""
+    """Interface for audio -> mel-spectrogram conversion."""
 
     @abstractmethod
     def audio_to_mel(self, audio: np.ndarray, sr: int | None) -> torch.Tensor:

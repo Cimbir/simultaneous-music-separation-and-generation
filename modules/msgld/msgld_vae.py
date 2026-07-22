@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -68,8 +70,7 @@ class MsgLdVAE(VAE):
     @torch.no_grad()
     def encode(self, mel: torch.Tensor) -> dict:
         """mel: (B, 1, n_mels, T) -> dict(mean, logvar, posterior)"""
-        mel = mel.permute(0, 1, 3, 2) # (B, 1, T, n_mels)
-        mel = mel.to(self._device)
+        mel = mel.permute(0, 1, 3, 2).to(self._device)  # (B, 1, T, n_mels)
         h = self.encoder(mel)
         moments = self.quant_conv(h)
         posterior = self.DiagonalGaussianDistribution(moments)
@@ -81,6 +82,5 @@ class MsgLdVAE(VAE):
         z = z.to(self._device)
         z = self.post_quant_conv(z)
         mel = self.decoder(z)
-        mel = mel.permute(0, 1, 3, 2) # (B, 1, n_mels, T)
-# Download VAE checkpoint
+        mel = mel.permute(0, 1, 3, 2)  # (B, 1, n_mels, T)
         return mel

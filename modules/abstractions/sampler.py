@@ -40,7 +40,7 @@ class Sampler(ABC):
             Divide by scale_factor before passing to the VAE decoder.
         """
         ...
-        
+
     @abstractmethod
     def get_diffusion_model(self):
         """
