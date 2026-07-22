@@ -314,5 +314,4 @@ class MsgLdDiffusionModel(DiffusionModel):
 
     def _get_first_stage_encoding(self, posterior):
         """Sample from posterior and scale."""
-        z = posterior.sample()
-        return z * self.scale_factor
+        return posterior.sample() * self.scale_factor

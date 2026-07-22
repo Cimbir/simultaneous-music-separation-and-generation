@@ -12,7 +12,7 @@ class MsgLdSampler(Sampler):
     Not included steps or eta, because could be variable (originally 200 steps and eta 1.0)
 
     Args:
-        diffusion_model: MsgLdDiffusionModel instance — provides the noise
+        diffusion_model: MsgLdDiffusionModel instance - provides the noise
                          schedule, apply_model, and cond_stage_model.
     """
 
