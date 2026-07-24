@@ -11,11 +11,11 @@ from study_analysis.config import Config, GROUND_TRUTH, MODEL_ALIASES, MODELS
 from study_analysis.metrics.common import AXES, bootstrap_ci
 
 LOWER_IS_BETTER = {
-    "mel_mse", "fad_vggish", "fad_clap", "kad", "kad_vggish", "kad_clap", "cbd",
+    "mel_mse", "fad_vggish", "fad_clap", "kad", "kad_vggish", "kad_clap", "irs", "cbd",
 }
 
 HIGHER_IS_BETTER = {
-    "si_sdr_i", "irs", "cbs", "cocola_both", "cocola_harmonic",
+    "si_sdr_i", "cbs", "cocola_both", "cocola_harmonic",
     "cocola_percussive", "ba", "ta",
 }
 
