@@ -160,11 +160,11 @@ class COCOLA(Metric):
             present_stems = list(wavs.keys())
             sample_stem_vals: dict[str, list[float]] = {m: [] for m in _MODES}
             for stem_name in present_stems:
+                ctx_stems = [s for s in present_stems if s != stem_name]
+                if not ctx_stems:
+                    continue
                 pred    = _resample_if_needed(wavs[stem_name], source_sr, TARGET_SR)
-                ctx_sum = sum(
-                    _resample_if_needed(wavs[s], source_sr, TARGET_SR)
-                    for s in present_stems if s != stem_name
-                )
+                ctx_sum = sum(_resample_if_needed(wavs[s], source_sr, TARGET_SR) for s in ctx_stems)
                 pair_scores = self._score_pair_all_modes(ctx_sum, pred)
                 for m in _MODES:
                     stem_scores[stem_name][m].append(pair_scores[m])
@@ -179,11 +179,11 @@ class COCOLA(Metric):
                 rand_stem_vals: dict[str, list[float]] = {m: [] for m in _MODES}
                 rand_stems = [s for s in present_stems if s in rand_wavs]
                 for stem_name in rand_stems:
+                    ctx_stems = [s for s in rand_stems if s != stem_name]
+                    if not ctx_stems:
+                        continue
                     pred     = _resample_if_needed(wavs[stem_name], source_sr, TARGET_SR)
-                    ctx_rand = sum(
-                        _resample_if_needed(rand_wavs[s], rand_sr, TARGET_SR)
-                        for s in rand_stems if s != stem_name
-                    )
+                    ctx_rand = sum(_resample_if_needed(rand_wavs[s], rand_sr, TARGET_SR) for s in ctx_stems)
                     pair_scores = self._score_pair_all_modes(ctx_rand, pred)
                     for m in _MODES:
                         rand_stem_vals[m].append(pair_scores[m])
