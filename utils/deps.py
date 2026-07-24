@@ -1,4 +1,4 @@
-from zipfile import Path
+from pathlib import Path
 import sys
 
 def add_msg_ld_to_path():

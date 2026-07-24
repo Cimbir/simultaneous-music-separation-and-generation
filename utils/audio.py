@@ -24,6 +24,21 @@ def display_stft(y, sr, name):
     plt.show()
     plt.close()
     
+def display_frequency_graph(y, sr, name):
+    fft = np.fft.rfft(y)
+    freqs = np.fft.rfftfreq(len(y), d=1.0 / sr)
+    magnitude_db = librosa.amplitude_to_db(np.abs(fft), ref=np.max)
+    plt.figure(figsize=(12, 4))
+    plt.semilogx(freqs[1:], magnitude_db[1:], linewidth=0.8)
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Magnitude (dB)")
+    plt.title(f"{name} Frequency Spectrum")
+    plt.xlim(20, sr / 2)
+    plt.grid(True, which="both", alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+
 def display_mel(y, sr, name):
     S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
     S_dB = librosa.power_to_db(S, ref=np.max)
