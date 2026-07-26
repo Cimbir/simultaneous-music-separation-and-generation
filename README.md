@@ -101,12 +101,7 @@ Google Colab and install their own dependencies inside the notebook):
 
 ### Objective evaluation
 
-1. Point `eval.ipynb` at a folder of generated samples (see the expected
-   folder structure documented in the notebook's first cell) and run it.
-2. This uses the metrics in `mgs_evals/`. Run its tests standalone with:
-   ```bash
-   pytest mgs_evals/tests
-   ```
+Point `eval.ipynb` at a folder of generated samples (see the expected folder structure documented in the notebook's first cell) and run it.
 
 ### Human listening study
 
