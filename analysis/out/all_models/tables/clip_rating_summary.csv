@@ -1,0 +1,11 @@
+axis,model,n_clips,min_ratings,mean_ratings,max_ratings
+musicality,MGE-LDM,10,8,10.1,12
+musicality,MSDM,10,8,10.1,13
+musicality,MSG-LD,10,7,10.1,14
+musicality,MSG-LD-ext,10,5,10.1,14
+musicality,MSLDM,10,8,10.1,12
+coherence,MGE-LDM,10,8,10.1,12
+coherence,MSDM,10,8,10.1,13
+coherence,MSG-LD,10,7,10.1,14
+coherence,MSG-LD-ext,10,5,10.1,14
+coherence,MSLDM,10,8,10.1,12

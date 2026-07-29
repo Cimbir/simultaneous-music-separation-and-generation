@@ -1,0 +1,3 @@
+axis,n_catch_trials,gt_ranked_first,gt_first_rate,mean_gt_rank,chance_rate,p_value_vs_chance
+musicality,22,12,0.5454545454545454,1.6818181818181819,0.2,0.00034919188897873307
+coherence,22,9,0.4090909090909091,2.090909090909091,0.2,0.020141695973839628
