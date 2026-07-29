@@ -45,6 +45,8 @@ pip install -r analysis/requirements.txt
 |   |-- config.js              Supabase project config
 |   |-- index.html             study entry point
 |   `-- supabase_schema.sql    database schema
+|-- evals/                     raw metric outputs and the aggregated results table
+|   `-- table.md               aggregated results table across all models
 |-- mgs_evals/                 objective audio metrics library
 |   |-- beats/                 beat-tracking-based metrics
 |   |-- coherence/             beat alignment, COCOLA
@@ -87,6 +89,22 @@ pip install -r analysis/requirements.txt
 - `analysis/` - `study_analysis/` pulls study responses from Supabase and
   computes agreement/ranking/correlation statistics; `run.py` is the CLI
   entry point; results land in `analysis/out/`.
+
+## Evaluation results
+
+Objective metrics computed on the listening-study clips. `(u)` = higher is better, `(d)` = lower is better. `*` = metric not applicable or not computed for that model.
+
+| Model        | SI-SDR-I (u) | mel-mse (d) | fad-vggish (d) | fad-clap (d) | kad (d) | irs (d) | cbs (u) | cbd (d) | COCOLA-harmonic (u) | COCOLA-percussive (u) | COCOLA-both (u) | BA (u) |
+|--------------|--------------|-------------|----------------|--------------|---------|---------|---------|---------|---------------------|-----------------------|-----------------|--------|
+| Random stems | *            | *           | 0.3429         | 0.1079       | 0.0783  | 0.0256  | 0.3805  | 0.3972  | 47.7176             | 50.1884               | 46.1536         | 0.2164 |
+| MSDM         | 12.06097     | 16.50438    | 4.8438         | 0.59910      | 0.41615 | 0.04866 | 0.44180 | 0.33662 | 50.9213             | 54.4341               | 51.2103         | 0.3546 |
+| MSG-LD       | *            | 3.44041     | 2.4087         | 0.32694      | 0.25321 | 0.05475 | 0.33966 | 0.36534 | 53.6960             | 58.3768               | 53.0037         | 0.3899 |
+| MSG-LD-large | *            | 2.12556     | 1.4808         | 0.3139       | 0.21306 | 0.05931 | 0.40102 | 0.32080 | 56.66447            | 61.05068              | 56.76307        | 0.4639 |
+| MGE-LDM      | 4.82405      | 9.52485     | 2.81236        | 0.52802      | 0.29971 | 0.05438 | 0.52625 | 0.19081 | 56.53726            | 58.05308              | 55.00231        | 0.6483 |
+| MSLDM        | NaN          | NaN         | 2.4237         | 0.46638      | 0.26753 | 0.02952 | 0.47489 | 0.29861 | 69.5119             | 71.3884               | 68.2401         | 0.7144 |
+| Ground truth | *            | *           | 0.0688         | 0.0274       | 0.02762 | 0.02442 | 0.52726 | 0.21814 | 61.2024             | 63.3875               | 60.1022         | 0.6630 |
+
+Full per-model metric logs are in `evals/`, and per-clip metrics used for human-study correlation analysis are in `results/survey_eval_scores.csv`.
 
 ## Running things
 
